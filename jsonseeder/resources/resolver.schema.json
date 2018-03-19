@@ -1,0 +1,64 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "definitions": {
+        "ref_description": {
+            "type": "object",
+            "properties": {
+                "target_class": {
+                    "type": "string"
+                },
+                "criteria": {
+                    "type": "object"
+                },
+                "field": {
+                  	"type": "string"
+                }
+            },
+            "required": [
+                "target_class",
+                "criteria"
+            ]
+        },
+        "entity_data": {
+            "type": "object",
+            "properties": {
+                "!refs": {
+                    "type": "object",
+                    "additionalProperties": { "$ref": "#/definitions/ref_description" }
+                },
+                "!inline": {
+                	"type": "object",
+                    "additionalProperties": { "$ref": "#/definitions/entity_group" }
+                }
+            }
+        },
+        "entity_group": {
+            "type": "object",
+            "properties": {
+                "target_class": {
+                    "type": "string"
+                },
+                "data": {
+                    "anyOf": [
+                        { "$ref": "#/definitions/entity_data" },
+                        {
+                            "type": "array",
+                            "items": { "$ref": "#/definitions/entity_data" }
+                        }
+                    ]
+                }
+            },
+            "required": [
+                "target_class",
+                "data"
+            ]
+        }
+    },
+    "anyOf": [
+        { "$ref": "#/definitions/entity_group" },
+        {
+            "type": "array",
+            "items": { "$ref": "#/definitions/entity_group" }
+        }
+    ]
+}
