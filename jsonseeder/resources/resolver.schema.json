@@ -25,10 +25,6 @@
                 "!refs": {
                     "type": "object",
                     "additionalProperties": { "$ref": "#/definitions/ref_description" }
-                },
-                "!inline": {
-                	"type": "object",
-                    "additionalProperties": { "$ref": "#/definitions/entity_group" }
                 }
             }
         },

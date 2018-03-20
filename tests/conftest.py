@@ -81,6 +81,6 @@ def session_factory():
     return sessionmaker(bind=_engine)
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture()
 def session(session_factory):
     return session_factory()

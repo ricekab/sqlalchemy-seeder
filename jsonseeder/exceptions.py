@@ -4,3 +4,7 @@ class UnresolvedReferencesError(Exception):
 
 class AmbiguousReferenceError(Exception):
     pass
+
+
+class EntityBuildError(Exception):
+    pass
