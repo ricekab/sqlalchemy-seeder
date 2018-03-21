@@ -24,8 +24,13 @@ def test_retrieval_string_class_path(model, registry_empty):
     assert retrieved_class is model.Country
 
 
+def test_retrieval_string_class_path_auto_registers(model, registry_empty):
+    retrieved_class = registry_empty.get_class_for_string("conftest:Country")
+    assert retrieved_class is model.Country
+
+
 def test_retrieval_string_invalid_class_path(model, registry_empty):
-    with pytest.raises(AttributeError):
+    with pytest.raises(ValueError):
         registry_empty.get_class_for_string("conftest:NotRegistered")
 
 

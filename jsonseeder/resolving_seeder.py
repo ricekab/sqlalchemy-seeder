@@ -44,41 +44,46 @@ class ClassRegistry(object):
         """
         if type(target) is str:
             if ':' not in target:
-                self.register_module(target)
+                return self.register_module(target)
             try:
                 target_module, target_class = target.split(':')
                 module_ = importlib.import_module(target_module)
                 target_class = getattr(module_, target_class)
-                self.register_class(target_class)
+                return self.register_class(target_class)
             except ValueError:
                 raise ValueError("Couldn't separate module and class. Too many ':' symbols in '{}'?".format(target))
             except AttributeError:
                 raise ValueError("No class '{}' in module '{}' found".format(target_class, target_module))
         if pyinsp.isclass(target):
-            self.register_class(target)
+            return self.register_class(target)
         if pyinsp.ismodule(target):
-            self.register_module(target)
+            return self.register_module(target)
 
     def register_class(self, cls):
         if not _is_mappable_class(cls):
             raise ValueError("Class {} does not have an associated mapper.".format(cls.__name__))
         self.class_path_cache[cls.__module__ + ':' + cls.__name__] = cls
         self.registered_classes.append(cls)
+        return cls
 
     def register_module(self, module_):
         module_attrs = [getattr(module_, attr) for attr in dir(module_) if not attr.startswith('_')]
         mappable_classes = {cls for cls in module_attrs if _is_mappable_class(cls)}
         for cls in mappable_classes:
             self.register_class(cls)
+        return mappable_classes
 
     def get_class_for_string(self, target):
+        """ Look for class in the cache. If it cannot be found and a classpath is provided, attempt to register it. """
         if ':' not in target:
             for cls in self.registered_classes:
                 if cls.__name__ == target:
                     return cls
+            raise AttributeError("No registered class found for '{}'".format(target))
         if target in self.class_path_cache:
             return self.class_path_cache[target]
-        raise AttributeError("No registered class found for '{}'".format(target))
+        else:
+            return self.register(target)
 
 
 class ResolvingSeeder(object):
@@ -126,6 +131,15 @@ class ResolvingSeeder(object):
                 entity_dict[e.__class__].append(e)
             return entity_dict
         return generated_entities
+
+    def register(self, class_or_module_target):
+        return self.registry.register(class_or_module_target)
+
+    def register_class(self, cls):
+        return self.registry.register_class(cls)
+
+    def register_module(self, module_):
+        return self.registry.register_module(module_)
 
 
 class _ReferenceResolver(object):
