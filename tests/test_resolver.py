@@ -252,6 +252,40 @@ def test_resolver_parallel(model, resolver_populated, session):
     assert airport.country.short == "UK"
     assert airport.country.name == "United Kingdom"
 
+
+AIRPORT_COUNTRY_SEPARATE_BY_CLASS = [
+    {
+        "target_class": "Country",
+        "data":
+            {
+                "name": "United Kingdom",
+                "short": "UK"
+            }
+
+    },
+    {
+        "target_class": "Airport",
+        "data": {
+            "icao": "EGLL",
+            "name": "London Heathrow",
+            "!refs": {
+                "country": {
+                    "target_class": "Country",
+                    "criteria": {
+                        "short": "UK"
+                    }
+                }
+            }
+        }
+    }
+]
+
+
+def test_resolver_separate_by_class(model, resolver_populated, session):
+    entities = resolver_populated.load_entities_from_json_dict(AIRPORT_COUNTRY_SEPARATE_BY_CLASS, commit=True, separate_by_class=True)
+    assert len(entities[model.Airport]) == 1
+    assert len(entities[model.Country]) == 1
+
 # Inline nested structure makes it too complex so the feature is not planned currently.
 
 # AIRPORT_COUNTRY_INLINE_OK = {
