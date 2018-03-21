@@ -44,7 +44,8 @@ class ClassRegistry(object):
         """
         if type(target) is str:
             if ':' not in target:
-                return self.register_module(target)
+                target_module = importlib.import_module(target)
+                return self.register_module(target_module)
             try:
                 target_module, target_class = target.split(':')
                 module_ = importlib.import_module(target_module)
