@@ -36,18 +36,22 @@ The general structure is outlined here, for some complete examples see further b
 
 * Entity Group
 
+Either a list of entity groups or a single entity group should form the root node of your json data.
+
+For the target class you can provide a class name (eg. `MyClass`) or a path to the class (eg. `path.to.module:MyClass`) 
+
+
 
     {
         "target_class": <class_name> or <class_path>,
         "data": list of <entity_data> objects or a single <entity_data> object 
     }
-    
-Where `class_name` is simple the name of the class (eg. `MyClass`) and `class_path` is the full path to the class like 
-`path.to.module:MyClass`. 
+        
     
 * Entity Data
 
-Defines a single entity. 
+Defines a single entity. The `!refs` field is a special keyword that defines references to other entities.
+It is optional.
 
 
     {
@@ -55,7 +59,7 @@ Defines a single entity.
         "my_number": 123,
         ...
         "!refs": {
-            "referenced_class_id": <reference_description>,
+            "my_reference_relation": <reference_description>,
             ...
         }
     }
@@ -73,7 +77,7 @@ The reference description defines which entity is being referenced based on some
             "referenced_field": "required_value",
             ..
         },
-        "field": <referenced_entity_field>
+        "field": <referenced_entity_field>              <-- If missing or empty this reference uses the entity itself.
     }
 
 #### Examples
@@ -88,7 +92,6 @@ For the examples we are using these model classes (in a module called "example.m
         name = Column(String(100))
     
         airports = relationship("Airport", back_populates="country")
-        relationship("User", backref="country")
     
     class Airport(Base):
         __tablename__ = 'airport'
@@ -101,8 +104,9 @@ For the examples we are using these model classes (in a module called "example.m
         country_id = Column(Integer, ForeignKey("country.id"), nullable=False)
         country = relationship("Country", back_populates="airports")
 
-1. Basic example: Single country
+1. Basic example Single country
 
+This is the simplest form of input.
     
     {
         "target_class": "Country",
@@ -111,6 +115,7 @@ For the examples we are using these model classes (in a module called "example.m
             "short": "UK"
         }
     }
+
 
 2. Multiple countries
 
@@ -153,7 +158,7 @@ Or separate if preferred:
     
 3. Referencing other entities
 
-- Here the defined airport specifies that the value of `country_id` references a country class's `id` field 
+Here the defined airport specifies that the value of `country_id` references a country class's `id` field 
 where its field `short` is `"UK"`. 
 If there is more than one match, or no matches are found an error will be thrown.
 
@@ -175,8 +180,9 @@ If there is more than one match, or no matches are found an error will be thrown
         }
     }
 
-- You can also reference entities that are inserted from the same file. Here the `country` relationship in the Airport entity is
+You can also reference entities that are inserted from the same file. Here the `country` relationship in the Airport entity is
 populated with the object that is created from this schema.
+
 
 
     [
@@ -187,7 +193,6 @@ populated with the object that is created from this schema.
                     "name": "United Kingdom",
                     "short": "UK"
                 }
-    
         },
         {
             "target_class": "Airport",

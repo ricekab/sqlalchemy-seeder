@@ -34,7 +34,7 @@ class Country(TestBase):
     name = Column(String(100))
 
     airports = relationship("Airport", back_populates="country")
-    relationship("User", backref="country")
+    users = relationship("User", backref="country")
 
 
 class Airport(TestBase):
