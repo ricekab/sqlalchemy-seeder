@@ -1,5 +1,5 @@
 import pytest
-from jsonseeder.resolving_seeder import ClassRegistry
+from seeder.resolving_seeder import ClassRegistry
 
 
 @pytest.fixture()

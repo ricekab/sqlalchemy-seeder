@@ -1,16 +1,16 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='sqlalchemy-jsonseeder',
-    version='0.1.2',
+    name='sqlalchemy-seeder',
+    version='0.2.0',
     packages=find_packages(exclude=["tests"]),
-    package_data={"jsonseeder": ["resources/*"]},
-    url='https://github.com/RiceKab/sqlalchemy-jsonseeder',
+    package_data={"seeder": ["resources/*"]},
+    url='https://github.com/RiceKab/sqlalchemy-seeder',
     license='MIT',
     author='Kevin CY Tang',
     author_email='kevin@cyborn.be',
-    keywords='sqlalchemy json seed',
-    description="Tool for creating (and persisting) SQLAlchemy entities from JSON formatted data.",
+    keywords='sqlalchemy json yaml seed',
+    description="Tool for creating (and persisting) SQLAlchemy entities from a simple data format.",
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
@@ -19,7 +19,7 @@ setup(
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3'
     ],
-    install_requires=['SQLAlchemy', 'jsonschema'],
+    install_requires=['SQLAlchemy', 'jsonschema', 'pyyaml'],
     test_requires=["pytest"],
     python_requires='>=2.7'
 )

@@ -5,7 +5,8 @@ from collections import defaultdict, namedtuple
 
 import jsonschema
 import pkg_resources
-from jsonseeder.exceptions import AmbiguousReferenceError, UnresolvedReferencesError, EntityBuildError
+import yaml
+from seeder.exceptions import AmbiguousReferenceError, UnresolvedReferencesError, EntityBuildError
 from sqlalchemy import inspect as sainsp
 from sqlalchemy.exc import NoInspectionAvailable
 from sqlalchemy.orm.exc import MultipleResultsFound
@@ -101,22 +102,35 @@ class ResolvingSeeder(object):
 
     def __init__(self, session):
         self.session = session
-        schema_string = pkg_resources.resource_string('jsonseeder', VALIDATION_SCHEMA_RSC)
+        schema_string = pkg_resources.resource_string('seeder', VALIDATION_SCHEMA_RSC)
         self.validation_schema = json.loads(schema_string)
         self.registry = ClassRegistry()
 
-    def load_entities_from_file(self, seed_file, separate_by_class=False, flush_on_create=True, commit=False):
+    def load_entities_from_json_file(self, seed_file, separate_by_class=False, flush_on_create=True, commit=False):
         with open(seed_file, 'rt') as json_file:
             json_string = json_file.read()
-        json_data = json.loads(json_string)
-        return self.load_entities_from_json_dict(json_data, separate_by_class, flush_on_create, commit)
+        return self.load_entities_from_json_string(json_string, separate_by_class, flush_on_create, commit)
 
-    def load_entities_from_json_dict(self, seed_data, separate_by_class=False, flush_on_create=True, commit=False):
+    def load_entities_from_json_string(self, json_string, separate_by_class=False, flush_on_create=True, commit=False):
+        data = json.loads(json_string)
+        return self.load_entities_from_data_dict(data, separate_by_class, flush_on_create, commit)
+
+    def load_entities_from_yaml_file(self, seed_file, separate_by_class=False, flush_on_create=True, commit=False):
+        with open(seed_file, 'rt') as yaml_file:
+            yaml_string = yaml_file.read()
+        return self.load_entities_from_json_string(yaml_string, separate_by_class, flush_on_create, commit)
+
+    def load_entities_from_yaml_string(self, yaml_string, separate_by_class=False, flush_on_create=True, commit=False):
+        data = yaml.load(yaml_string)
+        return self.load_entities_from_data_dict(data, separate_by_class, flush_on_create, commit)
+
+    def load_entities_from_data_dict(self, seed_data, separate_by_class=False, flush_on_create=True, commit=False):
         """
-        :param seed_data: The json formatted entity dict or list. This collection can be modified by the resolver.
+        :param seed_data: The formatted entity dict or list. This collection can be modified by the resolver.
         :param separate_by_class: Whether the output should separate entities by class (in a dict) 
         :param flush_on_create: Whether entities should be flushed once they are created. Note that the provided session
-        could be configured with `autoflush=True` in which case flushes can still happen.
+        could be configured with `autoflush=True` in which case flushes can still happen. Flushes are useful in that
+        they generate the ids that can then be referenced.
         :param commit: Whether the session should be committed after entities are generated.
         :return: List of entities or a dictionary mapping of classes to a list of entities based on separate_by_class.
         :raise ValidationError: If the provided data does not conform to the expected json structure. 

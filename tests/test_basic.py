@@ -1,5 +1,5 @@
 import pytest
-from jsonseeder.basic_seeder import BasicSeeder
+from seeder.basic_seeder import BasicSeeder
 
 
 def test_basic_from_dict(model):

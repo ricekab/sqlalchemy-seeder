@@ -1,17 +1,18 @@
-# sqlalchemy-jsonseeder
-Seed SQLAlchemy database with JSON formatted data. Supports references to other entities (and their fields)
+# sqlalchemy-seeder
+Seed SQLAlchemy database with a simple data format. Supports references to other entities (and their fields)
 that are defined alongside it or persisted in the database.
 
 ## Requirements & Installation
 
 Runs on Python 2.7 or Python 3
 
-- Dependencies
-    * sqlalchemy
-    * jsonschema
+#### Dependencies
+* sqlalchemy
+* jsonschema
+* pyyaml
     
-* Installation
-`pip install sqlalchemy-jsonseeder`
+#### Installation
+`pip install sqlalchemy-seeder`
 
 ## Usage
 Currently there are 2 seeders available: `BasicSeeder` and `ResolvingSeeder`.
@@ -20,19 +21,25 @@ Currently there are 2 seeders available: `BasicSeeder` and `ResolvingSeeder`.
 It does not perform any logic to validate or resolve the values. Wrong values will cause a `KeyError`.
 
 `ResolvingSeeder` allows you to define multiple entities in one file as well as define referential values.
-This requires some special JSON format so the seeder will know how to resolve them.
+This requires some formatting of the data so the seeder will know how to resolve them.
 
-ResolvingSeeder requires a session to be provided that it uses to query the database (and flush/commit as required).
+ResolvingSeeder requires a session to be provided that it uses to query the database to resolve references 
+(and flush/commit as requested).
 
-Since it has to be made aware of classes
+Since it has to be made aware of classes they have to be registered to be found. If a class path is provided but not
+recognized it will try to register the path before it continues.
 
-### JSON Structure
+### Currently supported data formats
+* JSON
+* YAML
+
+### Data format structure
 
 The top structure is composed out of one or more `entity group` objects which define a target class and a data block.
 The data block in turn contains one or more `entity data` blocks which then contains simple key-value pairs alongside 
 the special `!refs` key where references are defined.
  
-The general structure is outlined here, for some complete examples see further below.
+The general structure is outlined here (using JSON), for some complete examples see further below.
 
 * Entity Group
 
@@ -210,6 +217,23 @@ populated with the object that is created from this schema.
             }
         }
     ]
+    
+This same example in yaml:
+
+
+    - target_class: Country
+      data:
+        name: United Kingdom
+        short: UK
+    - target_class: Airport,
+      data: 
+        icao: EGLL
+        name: London Heathrow
+        '!refs':                    <-- Due to '!' it has to be surrounded in quotes.
+          country: 
+            target_class: Country,
+            criteria: 
+              short: UK
     
     
 
