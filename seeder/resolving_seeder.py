@@ -22,6 +22,8 @@ def _is_mappable_class(cls):
 
 
 class ClassRegistry(object):
+    """ A cache of mappable classes used by :class:`~seeder.resolving_seeder.ResolvingSeeder`. """
+
     def __init__(self):
         self.class_path_cache = {}
 
@@ -36,12 +38,20 @@ class ClassRegistry(object):
         """ 
         Register module or class defined by target. 
         
-        If target is a class, it is registered directly.
-        If target is a module, it registers all classes in the module that are mappable.
-        If target is a string, it is first resolved into either a module path or a class path.
+        :param target:
         
-        module path: path.to.module
-        class path: path.to.module:MyClass
+            If `target` is a class, it is registered directly using :data:`register_class`.
+        
+            If `target` is a module, it registers all mappable classes using :data:`register_module`.
+        
+            If `target` is a string, it is first resolved into either a module or a class. Which look like:
+        
+                Module path: "path.to.module"
+                
+                Class path: "path.to.module:MyClass"
+        
+        :raise ValueError: If target string could not be parsed.
+        :raise AttributeError: If target string references a class that does not exist.
         """
         if type(target) is str:
             if ':' not in target:
@@ -62,13 +72,25 @@ class ClassRegistry(object):
             return self.register_module(target)
 
     def register_class(self, cls):
+        """
+        Registers the given class with its full class path in the cache.
+        
+        :param cls: The class to register.
+        :return: The class that was passed.
+        :raise ValueError: If the class is not mappable (no associated SQLAlchemy mapper).
+        """
         if not _is_mappable_class(cls):
             raise ValueError("Class {} does not have an associated mapper.".format(cls.__name__))
         self.class_path_cache[cls.__module__ + ':' + cls.__name__] = cls
-        self.registered_classes.append(cls)
         return cls
 
     def register_module(self, module_):
+        """
+        Retrieves all classes from the given module that are mappable. 
+        
+        :param module_: The module to inspect.
+        :return: A set of all mappable classes that were found. 
+        """
         module_attrs = [getattr(module_, attr) for attr in dir(module_) if not attr.startswith('_')]
         mappable_classes = {cls for cls in module_attrs if _is_mappable_class(cls)}
         for cls in mappable_classes:
@@ -76,7 +98,14 @@ class ClassRegistry(object):
         return mappable_classes
 
     def get_class_for_string(self, target):
-        """ Look for class in the cache. If it cannot be found and a classpath is provided, attempt to register it. """
+        """
+        Look for class in the cache. If it cannot be found and a full classpath is provided, it is first registered 
+        before returning.
+        
+        :param target: The class name or full classpath.
+        :return: The class defined by the target.
+        :raise AttributeError: If there is no registered class for the given target.
+        """
         if ':' not in target:
             for cls in self.registered_classes:
                 if cls.__name__ == target:
@@ -89,16 +118,21 @@ class ClassRegistry(object):
 
 
 class ResolvingSeeder(object):
-    """ Seeder that can resolve entities with references. Entity classes must first be registered with the seeder
-    so it can retrieve them during the seeding process. 
+    """ Seeder that can resolve entities with references to other entities. 
     
-    By default each entity is flushed into the provided session when it is created. This is useful if you want to
-     reference them by id in other entities.
-     
-    If this behaviour is not wanted (eg. the created entities from the file are incomplete) you can disable it by
-    setting `flush_on_create` to False when loading entities.
+    This requires the data to be formatted in a custom :ref:`data-format` to define the references.
     
-    Commit is only done internally if `commit` is set to True, by default no commits are issued. """
+    As entities have to define their target class they must be registered so the seeder can retrieve them during the 
+    seeding process. This is typically done using :meth:`~seeder.resolving_seeder.ClassRegistry.register`, 
+    :meth:`~seeder.resolving_seeder.ClassRegistry.register_class` or 
+    :meth:`~seeder.resolving_seeder.ClassRegistry.register_module` which are
+    hoisted methods from :class:`~seeder.resolving_seeder.ClassRegistry`. If a classpath is encountered but not
+    recognized it will be resolved before continuing.
+    
+    The session passed to this seeder is used to resolve references. Flushes may occur depending on the session
+    configuration and the passed parameters. The default behaviour when loading entities is to perform flushes but not 
+    to commit.
+    """
 
     def __init__(self, session):
         self.session = session
@@ -107,33 +141,62 @@ class ResolvingSeeder(object):
         self.registry = ClassRegistry()
 
     def load_entities_from_json_file(self, seed_file, separate_by_class=False, flush_on_create=True, commit=False):
+        """
+        Convenience method to read the given file and parse it as json.
+        
+        See: :data:`load_entities_from_data_dict`
+        """
         with open(seed_file, 'rt') as json_file:
             json_string = json_file.read()
         return self.load_entities_from_json_string(json_string, separate_by_class, flush_on_create, commit)
 
     def load_entities_from_json_string(self, json_string, separate_by_class=False, flush_on_create=True, commit=False):
+        """
+        Parse the given string as json.
+        
+        See: :data:`load_entities_from_data_dict`
+        """
         data = json.loads(json_string)
         return self.load_entities_from_data_dict(data, separate_by_class, flush_on_create, commit)
 
     def load_entities_from_yaml_file(self, seed_file, separate_by_class=False, flush_on_create=True, commit=False):
+        """
+        Convenience method to read the given file and parse it as yaml.
+        
+        See: :any:`load_entities_from_data_dict`
+        """
         with open(seed_file, 'rt') as yaml_file:
             yaml_string = yaml_file.read()
         return self.load_entities_from_json_string(yaml_string, separate_by_class, flush_on_create, commit)
 
     def load_entities_from_yaml_string(self, yaml_string, separate_by_class=False, flush_on_create=True, commit=False):
+        """
+        Parse the given string as yaml.
+        
+        See: :any:`load_entities_from_data_dict`
+        """
         data = yaml.load(yaml_string)
         return self.load_entities_from_data_dict(data, separate_by_class, flush_on_create, commit)
 
     def load_entities_from_data_dict(self, seed_data, separate_by_class=False, flush_on_create=True, commit=False):
         """
+        Create entities from the given dictionary.
+        
+        By default each entity is flushed into the provided session when it is created. This is useful if you want to
+        reference them by id in other entities.
+         
+        If this behaviour is not wanted (eg. the created entities are incomplete) you can disable it by setting 
+        `flush_on_create` to False when loading entities. The provided session can still flush if it is configured with
+        `autoflush=True`.
+        
+        No commit is issued unless `commit` is set to True.
+        
         :param seed_data: The formatted entity dict or list. This collection can be modified by the resolver.
-        :param separate_by_class: Whether the output should separate entities by class (in a dict) 
-        :param flush_on_create: Whether entities should be flushed once they are created. Note that the provided session
-        could be configured with `autoflush=True` in which case flushes can still happen. Flushes are useful in that
-        they generate the ids that can then be referenced.
+        :param separate_by_class: Whether the output should separate entities by class (in a dict).
+        :param flush_on_create: Whether entities should be flushed once they are created.
         :param commit: Whether the session should be committed after entities are generated.
-        :return: List of entities or a dictionary mapping of classes to a list of entities based on separate_by_class.
-        :raise ValidationError: If the provided data does not conform to the expected json structure. 
+        :return: List of entities or a dictionary mapping of classes to a list of entities based on `separate_by_class`.
+        :raise ValidationError: If the provided data does not conform to the expected data structure.
         """
         jsonschema.validate(seed_data, self.validation_schema)
         resolver = _ReferenceResolver(session=self.session, registry=self.registry, flush_on_create=flush_on_create)
