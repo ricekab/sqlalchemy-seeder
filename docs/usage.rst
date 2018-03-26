@@ -3,12 +3,12 @@ Seeders
 Basic seeder
 ------------
 If you only need to create an object using a simple field->value mapping you can do so with the
-:class:`~seeder.BasicSeeder` methods.
+:class:`~seeder.basic_seeder.BasicSeeder` methods.
 
 Resolving seeder
 ----------------
-Once you want to be able to reference other entities you'll need to use a :class:`~seeder.ResolvingSeeder`. This
-allows for entity attributes to point to other entities (in case of relationships) or reference another entity's field
+Once you want to be able to reference other entities you'll need to use a :class:`~seeder.resolving_seeder.ResolvingSeeder`.
+This allows for entity attributes to point to other entities (in case of relationships) or reference another entity's field
 (for foreign keys or attributes).
 
 This requires the seed file to be formatted in a specific way which we will detail in the next section.

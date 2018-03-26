@@ -1,18 +1,15 @@
 API Reference
 =============
-
-.. module:: seeder
-
 Basic seeder
 ------------
 
-.. autoclass:: BasicSeeder
+.. autoclass:: seeder.basic_seeder.BasicSeeder
    :members:
 
 Resolving seeder
 ----------------
 
-.. autoclass:: ResolvingSeeder
+.. autoclass:: seeder.resolving_seeder.ResolvingSeeder
    :members:
 
 .. autoclass:: seeder.resolving_seeder.ClassRegistry
