@@ -6,7 +6,7 @@ from collections import defaultdict, namedtuple
 import jsonschema
 import pkg_resources
 import yaml
-from seeder.exceptions import AmbiguousReferenceError, UnresolvedReferencesError, EntityBuildError
+from sqlalchemyseeder.exceptions import AmbiguousReferenceError, UnresolvedReferencesError, EntityBuildError
 from sqlalchemy import inspect as sainsp
 from sqlalchemy.exc import NoInspectionAvailable
 from sqlalchemy.orm.exc import MultipleResultsFound
@@ -22,7 +22,7 @@ def _is_mappable_class(cls):
 
 
 class ClassRegistry(object):
-    """ A cache of mappable classes used by :class:`~seeder.resolving_seeder.ResolvingSeeder`. """
+    """ A cache of mappable classes used by :class:`~sqlalchemyseeder.resolving_seeder.ResolvingSeeder`. """
 
     def __init__(self):
         self.class_path_cache = {}
@@ -122,21 +122,21 @@ class ResolvingSeeder(object):
     
     This requires the data to be formatted in a custom :ref:`data-format` to define the references.
     
-    As entities have to define their target class they must be registered so the seeder can retrieve them during the 
-    seeding process. This is typically done using :meth:`~seeder.resolving_seeder.ClassRegistry.register`, 
-    :meth:`~seeder.resolving_seeder.ClassRegistry.register_class` or 
-    :meth:`~seeder.resolving_seeder.ClassRegistry.register_module` which are
-    hoisted methods from :class:`~seeder.resolving_seeder.ClassRegistry`. If a classpath is encountered but not
+    As entities have to define their target class they must be registered so the sqlalchemyseeder can retrieve them during the 
+    seeding process. This is typically done using :meth:`~sqlalchemyseeder.resolving_seeder.ClassRegistry.register`, 
+    :meth:`~sqlalchemyseeder.resolving_seeder.ClassRegistry.register_class` or 
+    :meth:`~sqlalchemyseeder.resolving_seeder.ClassRegistry.register_module` which are
+    hoisted methods from :class:`~sqlalchemyseeder.resolving_seeder.ClassRegistry`. If a classpath is encountered but not
     recognized it will be resolved before continuing.
     
-    The session passed to this seeder is used to resolve references. Flushes may occur depending on the session
+    The session passed to this sqlalchemyseeder is used to resolve references. Flushes may occur depending on the session
     configuration and the passed parameters. The default behaviour when loading entities is to perform flushes but not 
     to commit.
     """
 
     def __init__(self, session):
         self.session = session
-        schema_string = pkg_resources.resource_string('seeder', VALIDATION_SCHEMA_RSC)
+        schema_string = pkg_resources.resource_string('sqlalchemyseeder', VALIDATION_SCHEMA_RSC)
         self.validation_schema = json.loads(schema_string)
         self.registry = ClassRegistry()
 

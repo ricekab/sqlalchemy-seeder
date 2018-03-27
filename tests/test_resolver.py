@@ -1,7 +1,7 @@
 import pytest
 from jsonschema import ValidationError
-from seeder.exceptions import UnresolvedReferencesError, AmbiguousReferenceError
-from seeder.resolving_seeder import ResolvingSeeder
+from sqlalchemyseeder.exceptions import UnresolvedReferencesError, AmbiguousReferenceError
+from sqlalchemyseeder.resolving_seeder import ResolvingSeeder
 
 
 @pytest.fixture()

@@ -1,5 +1,5 @@
 import pytest
-from seeder.basic_seeder import BasicSeeder
+from sqlalchemyseeder.basic_seeder import BasicSeeder
 
 
 def test_basic_from_dict(model):

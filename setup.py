@@ -2,9 +2,9 @@ from setuptools import setup, find_packages
 
 setup(
     name='sqlalchemy-seeder',
-    version='0.2.0',
+    version='0.3.0',
     packages=find_packages(exclude=["tests"]),
-    package_data={"seeder": ["resources/*"]},
+    package_data={"sqlalchemyseeder": ["resources/*"]},
     url='https://github.com/RiceKab/sqlalchemy-seeder',
     license='MIT',
     author='Kevin CY Tang',

@@ -1,5 +1,5 @@
 import pytest
-from seeder.resolving_seeder import ClassRegistry
+from sqlalchemyseeder.resolving_seeder import ClassRegistry
 
 
 @pytest.fixture()

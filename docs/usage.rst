@@ -3,11 +3,11 @@ Seeders
 Basic seeder
 ------------
 If you only need to create an object using a simple field->value mapping you can do so with the
-:class:`~seeder.basic_seeder.BasicSeeder` methods.
+:class:`~sqlalchemyseeder.basic_seeder.BasicSeeder` methods.
 
 Resolving seeder
 ----------------
-Once you want to be able to reference other entities you'll need to use a :class:`~seeder.resolving_seeder.ResolvingSeeder`.
+Once you want to be able to reference other entities you'll need to use a :class:`~sqlalchemyseeder.resolving_seeder.ResolvingSeeder`.
 This allows for entity attributes to point to other entities (in case of relationships) or reference another entity's field
 (for foreign keys or attributes).
 
@@ -434,7 +434,7 @@ Three countries each with a single airport.
 
 Using the resolving seeder
 **************************
-A :class:`~seeder.ResolvingSeeder` needs access to a session (provided on initialization) which it uses to resolve references.
+A :class:`~sqlalchemyseeder.ResolvingSeeder` needs access to a session (provided on initialization) which it uses to resolve references.
 
 A basic usage example:
 
