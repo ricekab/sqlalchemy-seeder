@@ -1,17 +1,20 @@
 import importlib
 import inspect as pyinsp
 import json
+import os
 from collections import defaultdict, namedtuple
 
 import jsonschema
 import pkg_resources
 import yaml
-from sqlalchemyseeder.exceptions import AmbiguousReferenceError, UnresolvedReferencesError, EntityBuildError
 from sqlalchemy import inspect as sainsp
 from sqlalchemy.exc import NoInspectionAvailable
 from sqlalchemy.orm.exc import MultipleResultsFound
+from sqlalchemyseeder.exceptions import AmbiguousReferenceError, UnresolvedReferencesError, EntityBuildError
+from sqlalchemyseeder.util import UniqueDeque
 
 VALIDATION_SCHEMA_RSC = 'resources/resolver.schema.json'
+DEFAULT_VERSION = 1
 
 
 def _is_mappable_class(cls):
@@ -46,7 +49,7 @@ class ClassRegistry(object):
         
             If `target` is a string, it is first resolved into either a module or a class. Which look like:
         
-                Module path: "path.to.module"
+                Module path: "path.to.module" or "path.to.module#<depth>" 
                 
                 Class path: "path.to.module:MyClass"
         
@@ -55,7 +58,11 @@ class ClassRegistry(object):
         """
         if type(target) is str:
             if ':' not in target:
-                target_module = importlib.import_module(target)
+                depth = 1
+                if '#' in target:
+                    target, depth = target.split('#')
+                    depth = int(depth)
+                target_module = importlib.import_module(target, depth)
                 return self.register_module(target_module)
             try:
                 target_module, target_class = target.split(':')
@@ -84,15 +91,20 @@ class ClassRegistry(object):
         self.class_path_cache[cls.__module__ + ':' + cls.__name__] = cls
         return cls
 
-    def register_module(self, module_):
+    def register_module(self, module_, depth=0):
         """
         Retrieves all classes from the given module that are mappable. 
         
         :param module_: The module to inspect.
+        :param depth: How deep to recurse into the module to search for mappable classes. Default is 0.
         :return: A set of all mappable classes that were found. 
         """
         module_attrs = [getattr(module_, attr) for attr in dir(module_) if not attr.startswith('_')]
         mappable_classes = {cls for cls in module_attrs if _is_mappable_class(cls)}
+        if depth > 0:
+            for attr in module_attrs:
+                if pyinsp.ismodule(attr):
+                    mappable_classes = mappable_classes.union(self.register_module(attr, depth=depth - 1))
         for cls in mappable_classes:
             self.register_class(cls)
         return mappable_classes
@@ -116,6 +128,7 @@ class ClassRegistry(object):
         else:
             return self.register(target)
 
+MetaData = namedtuple("MetaData", ("version",))
 
 class ResolvingSeeder(object):
     """ Seeder that can resolve entities with references to other entities. 
@@ -140,44 +153,6 @@ class ResolvingSeeder(object):
         self.validation_schema = json.loads(schema_string)
         self.registry = ClassRegistry()
 
-    def load_entities_from_json_file(self, seed_file, separate_by_class=False, flush_on_create=True, commit=False):
-        """
-        Convenience method to read the given file and parse it as json.
-        
-        See: :data:`load_entities_from_data_dict`
-        """
-        with open(seed_file, 'rt') as json_file:
-            json_string = json_file.read()
-        return self.load_entities_from_json_string(json_string, separate_by_class, flush_on_create, commit)
-
-    def load_entities_from_json_string(self, json_string, separate_by_class=False, flush_on_create=True, commit=False):
-        """
-        Parse the given string as json.
-        
-        See: :data:`load_entities_from_data_dict`
-        """
-        data = json.loads(json_string)
-        return self.load_entities_from_data_dict(data, separate_by_class, flush_on_create, commit)
-
-    def load_entities_from_yaml_file(self, seed_file, separate_by_class=False, flush_on_create=True, commit=False):
-        """
-        Convenience method to read the given file and parse it as yaml.
-        
-        See: :any:`load_entities_from_data_dict`
-        """
-        with open(seed_file, 'rt') as yaml_file:
-            yaml_string = yaml_file.read()
-        return self.load_entities_from_json_string(yaml_string, separate_by_class, flush_on_create, commit)
-
-    def load_entities_from_yaml_string(self, yaml_string, separate_by_class=False, flush_on_create=True, commit=False):
-        """
-        Parse the given string as yaml.
-        
-        See: :any:`load_entities_from_data_dict`
-        """
-        data = yaml.load(yaml_string)
-        return self.load_entities_from_data_dict(data, separate_by_class, flush_on_create, commit)
-
     def load_entities_from_data_dict(self, seed_data, separate_by_class=False, flush_on_create=True, commit=False):
         """
         Create entities from the given dictionary.
@@ -197,10 +172,10 @@ class ResolvingSeeder(object):
         :param commit: Whether the session should be committed after entities are generated.
         :return: List of entities or a dictionary mapping of classes to a list of entities based on `separate_by_class`.
         :raise ValidationError: If the provided data does not conform to the expected data structure.
+        :raise AmbiguousReferenceError: If one or more references provided refer to more than one entity.
+        :raise UnresolvedReferencesError: If one or more references could not be resolved (eg. they don't exist).
         """
-        jsonschema.validate(seed_data, self.validation_schema)
-        resolver = _ReferenceResolver(session=self.session, registry=self.registry, flush_on_create=flush_on_create)
-        generated_entities = resolver.generate_entities(seed_data)
+        generated_entities = self.generate_entities(seed_data, flush_on_create)
         if commit:
             self.session.commit()
         if separate_by_class:
@@ -209,6 +184,22 @@ class ResolvingSeeder(object):
                 entity_dict[e.__class__].append(e)
             return entity_dict
         return generated_entities
+
+    def generate_entities(self, seed_data, flush_on_create=True):
+        """ Parses the data dictionary to generate the entities. """
+        jsonschema.validate(seed_data, self.validation_schema)
+        meta_data = self.parse_meta_tags(seed_data)
+        # Todo: Backwards compat support here based on metadata version.
+        resolver = ReferenceResolver(session=self.session, registry=self.registry, flush_on_create=flush_on_create)
+        return resolver.generate_entities(seed_data)
+
+    def parse_meta_tags(self, seed_data):
+        """ Parses meta tags and executes relevant actions. """
+        models = seed_data.pop("!models", [])
+        for m in models:
+            self.register(m)
+        version = seed_data.pop("!version", DEFAULT_VERSION)
+        return MetaData(version=version)
 
     def register(self, class_or_module_target):
         return self.registry.register(class_or_module_target)
@@ -220,7 +211,44 @@ class ResolvingSeeder(object):
         return self.registry.register_module(module_)
 
 
-class _ReferenceResolver(object):
+class ResolvingFileSeeder(ResolvingSeeder):
+    """ ResolvingSeeder extension to read from file path(s) """
+
+    def __init__(self, session):
+        super(ResolvingFileSeeder, self).__init__(session)
+        self.data_queue = UniqueDeque()
+
+    def queue_file(self, file_path):
+        """ Reads in the given file and parses relevant metadata. Does not perform any seeding actions yet. """
+        with open(file_path, 'rt') as yaml_file:
+            data_string = yaml_file.read()
+        data = yaml.load(data_string)
+        jsonschema.validate(data, self.validation_schema)
+        referenced_files = data.pop("!files", [])
+        self.data_queue.append(data)
+        for file_ in referenced_files:
+            self.queue_file(os.path.join(os.path.dirname(file_path), file_))
+
+    def load_entities(self, separate_by_class=False, flush_on_create=True, commit=False):
+        """ 
+        Load entities from queued up files.
+         
+        See :any:`load_entities_from_data_dict`
+        """
+        entities = []
+        while self.data_queue:
+            entities.extend(self.generate_entities(self.data_queue.pop(), flush_on_create))
+        if commit:
+            self.session.commit()
+        if separate_by_class:
+            entity_dict = defaultdict(list)
+            for e in entities:
+                entity_dict[e.__class__].append(e)
+            return entity_dict
+        return entities
+
+
+class ReferenceResolver(object):
     def __init__(self, session, registry, flush_on_create=False):
         self.session = session
         self.registry = registry
