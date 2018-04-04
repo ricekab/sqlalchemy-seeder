@@ -1,12 +1,10 @@
+"""
+Tests for resolver with model classes preconfigured.
+"""
 import pytest
 from jsonschema import ValidationError
 from sqlalchemyseeder.exceptions import UnresolvedReferencesError, AmbiguousReferenceError
 from sqlalchemyseeder.resolving_seeder import ResolvingSeeder
-
-
-@pytest.fixture()
-def resolver_empty(session):
-    return ResolvingSeeder(session=session)
 
 
 @pytest.fixture()
@@ -18,8 +16,7 @@ def resolver_populated(session, model):
 
 
 COUNTRY_SINGLE_OK = {
-    "target_class": "Country",
-    "data": {
+    "Country": {
         "name": "United Kingdom",
         "short": "UK"
     }
@@ -37,22 +34,8 @@ def test_resolver_basic(model, resolver_populated, session):
     assert country.short == "UK"
 
 
-COUNTRY_SINGLE_BAD_FORMAT = {
-    "data": {
-        "name": "United Kingdom",
-        "short": "UK"
-    }
-}
-
-
-def test_resolver_single_bad_format(model, resolver_populated, session):
-    with pytest.raises(ValidationError):
-        resolver_populated.load_entities_from_data_dict(COUNTRY_SINGLE_BAD_FORMAT)
-
-
-COUNTRY_LIST_COMBINED_OK = {
-    "target_class": "Country",
-    "data": [
+COUNTRY_LIST_OK = {
+    "Country": [
         {
             "name": "United Kingdom",
             "short": "UK"
@@ -65,7 +48,7 @@ COUNTRY_LIST_COMBINED_OK = {
 
 
 def test_resolver_combined(model, resolver_populated, session):
-    entities = resolver_populated.load_entities_from_data_dict(COUNTRY_LIST_COMBINED_OK, commit=True)
+    entities = resolver_populated.load_entities_from_data_dict(COUNTRY_LIST_OK, commit=True)
     assert len(entities) == 2
     retrieved_countries = session.query(model.Country).all()
     assert len(retrieved_countries) == 2
@@ -103,8 +86,7 @@ def test_resolver_separate(model, resolver_populated, session):
 
 
 AIRPORT_COUNTRY_REFERENCE_ENTITY_OK = {
-    "target_class": "Airport",
-    "data": {
+    "Airport": {
         "icao": "EGLL",
         "name": "London Heathrow",
         "!refs": {
@@ -134,8 +116,7 @@ def test_resolver_reference_entity(model, resolver_populated, session):
 
 
 AIRPORT_COUNTRY_REFERENCE_FIELD_OK = {
-    "target_class": "Airport",
-    "data": {
+    "Airport": {
         "icao": "EGLL",
         "name": "London Heathrow",
         "!refs": {
@@ -162,7 +143,7 @@ def test_resolver_reference_field(model, resolver_populated, session):
     assert airport.country.name == "United Kingdom"
 
 
-AIRPORT_COUNTRY_REFERENCE_FIELD_BAD = {
+AIRPORT_COUNTRY_REFERENCE_FIELD_UNRESOLVABLE = {
     "target_class": "Airport",
     "data": {
         "icao": "EGLL",
@@ -184,7 +165,8 @@ def test_resolver_bad_reference(model, resolver_populated, session):
     # UK never added
     assert len(session.query(model.Country).all()) == 0
     with pytest.raises(UnresolvedReferencesError):
-        entities = resolver_populated.load_entities_from_data_dict(AIRPORT_COUNTRY_REFERENCE_FIELD_BAD, commit=True)
+        entities = resolver_populated.load_entities_from_data_dict(AIRPORT_COUNTRY_REFERENCE_FIELD_UNRESOLVABLE,
+                                                                   commit=True)
         assert entities[0].country is None
         assert entities[0].country_id is None
 
@@ -216,32 +198,24 @@ def test_resolver_ambiguous_reference(model, resolver_populated, session):
         resolver_populated.load_entities_from_data_dict(AIRPORT_COUNTRY_REFERENCE_FIELD_AMBIGUOUS, commit=True)
 
 
-AIRPORT_COUNTRY_PARALLEL_OK = [
-    {
-        "target_class": "Country",
-        "data":
-            {
-                "name": "United Kingdom",
-                "short": "UK"
-            }
-
+AIRPORT_COUNTRY_PARALLEL_OK = {
+    "Country": {
+        "name": "United Kingdom",
+        "short": "UK"
     },
-    {
-        "target_class": "Airport",
-        "data": {
-            "icao": "EGLL",
-            "name": "London Heathrow",
-            "!refs": {
-                "country": {
-                    "target_class": "Country",
-                    "criteria": {
-                        "short": "UK"
-                    }
+    "Airport": {
+        "icao": "EGLL",
+        "name": "London Heathrow",
+        "!refs": {
+            "country": {
+                "target_class": "Country",
+                "criteria": {
+                    "short": "UK"
                 }
             }
         }
     }
-]
+}
 
 
 def test_resolver_parallel(model, resolver_populated, session):
@@ -253,73 +227,91 @@ def test_resolver_parallel(model, resolver_populated, session):
     assert airport.country.name == "United Kingdom"
 
 
-AIRPORT_COUNTRY_SEPARATE_BY_CLASS = [
-    {
-        "target_class": "Country",
-        "data":
-            {
-                "name": "United Kingdom",
-                "short": "UK"
-            }
-
+AIRPORT_COUNTRY_REFERENCE_BY_ID = {
+    "Country": {
+        "!id": "country_uk",
+        "name": "United Kingdom",
+        "short": "UK"
     },
-    {
-        "target_class": "Airport",
-        "data": {
-            "icao": "EGLL",
-            "name": "London Heathrow",
-            "!refs": {
-                "country": {
-                    "target_class": "Country",
-                    "criteria": {
-                        "short": "UK"
-                    }
-                }
-            }
-        }
+    "Airport": {
+        "icao": "EGLL",
+        "name": "London Heathrow",
+        "country": "#country_uk"
     }
-]
+}
 
 
-def test_resolver_separate_by_class(model, resolver_populated, session):
-    entities = resolver_populated.load_entities_from_data_dict(AIRPORT_COUNTRY_SEPARATE_BY_CLASS, commit=True,
+def test_resolver_reference_by_id(model, resolver_populated, session):
+    entities = resolver_populated.load_entities_from_data_dict(AIRPORT_COUNTRY_REFERENCE_BY_ID, commit=True,
                                                                separate_by_class=True)
     assert len(entities[model.Airport]) == 1
     assert len(entities[model.Country]) == 1
 
 
-JSON_STRING = '''
-[
-    {
-        "target_class": "Country",
-        "data": [
-            {
-                "name": "United Kingdom",
-                "short": "UK"
-            },
-            {
-                "name": "Belgium",
-                "short": "BE"
-            }
-        ]
+AIRPORT_COUNTRY_REFERENCE_BY_ID_FIELD = {
+    "Country": {
+        "!id": "country_uk",
+        "name": "United Kingdom",
+        "short": "UK"
+    },
+    "Airport": {
+        "icao": "EGLL",
+        "name": "London Heathrow",
+        "country_id": "#country_uk.id"
+    }
+}
 
+
+def test_resolver_reference_by_id_field(model, resolver_populated, session):
+    entities = resolver_populated.load_entities_from_data_dict(AIRPORT_COUNTRY_REFERENCE_BY_ID_FIELD, commit=True,
+                                                               separate_by_class=True)
+    assert len(entities[model.Airport]) == 1
+    assert len(entities[model.Country]) == 1
+
+
+AIRPORT_COUNTRY_REFERENCE_BY_ID_UNKNOWN = {
+    "Country": {
+        "!id": "country_uk",
+        "name": "United Kingdom",
+        "short": "UK"
+    },
+    "Airport": {
+        "icao": "EGLL",
+        "name": "London Heathrow",
+        "country": "#country_uk"
+    }
+}
+
+
+def test_resolver_reference_by_id_unknown(model, resolver_populated, session):
+    with pytest.raises(UnresolvedReferencesError):
+        resolver_populated.load_entities_from_data_dict(AIRPORT_COUNTRY_REFERENCE_BY_ID_UNKNOWN, commit=True,
+                                                        separate_by_class=True)
+
+
+JSON_STRING = '''
+"Country": [
+    {
+        "name": "United Kingdom",
+        "short": "UK"
     },
     {
-        "target_class": "Airport",
-        "data": {
-            "icao": "EGLL",
-            "name": "London Heathrow",
-            "!refs": {
-                "country": {
-                    "target_class": "Country",
-                    "criteria": {
-                        "short": "UK"
-                    }
-                }
+        "name": "Belgium",
+        "short": "BE"
+    }
+],
+"Airport": {
+    "icao": "EGLL",
+    "name": "London Heathrow",
+    "!refs": {
+        "country": {
+            "target_class": "Country",
+            "criteria": {
+                "short": "UK"
             }
         }
     }
-]'''
+}'''
 
 
 def test_resolver_json_string(model, resolver_populated, session):
@@ -332,21 +324,19 @@ def test_resolver_json_string(model, resolver_populated, session):
 
 
 YAML_STRING = '''
-- target_class: Country
-  data:
-    - name: United Kingdom
-      short: UK
-    - name: Belgium
-      short: BE
-- target_class: Airport
-  data:
-    icao: EGLL
-    name: London Heathrow
-    "!refs": 
-        country:
-            target_class: Country
-            criteria:
-                short: UK
+- Country:
+  - name: United Kingdom
+    short: UK
+  - name: Belgium
+    short: BE
+- Airport:
+  icao: EGLL
+  name: London Heathrow
+  "!refs": 
+    country:
+      target_class: Country
+      criteria:
+        short: UK
 '''
 
 
@@ -357,76 +347,3 @@ def test_resolver_yaml_string(model, resolver_populated, session):
     assert len(entities[model.Country]) == len(session.query(model.Country).all()) == 2
     assert heathrow.name == "London Heathrow"
     assert heathrow.country == session.query(model.Country).filter_by(short="UK").one()
-
-# Inline nested structure makes it too complex so the feature is not planned currently. May revisit it soon.
-
-# AIRPORT_COUNTRY_INLINE_OK = {
-#     "target_class": "Airport",
-#     "data": {
-#         "icao": "EGLL",
-#         "name": "London Heathrow",
-#         "!inline": {
-#             "country": {
-#                 "target_class": "Country",
-#                 "data": {
-#                     "short": "UK",
-#                     "name": "United Kingdom"
-#                 }
-#             }
-#         }
-#     }
-# }
-#
-#
-# def test_resolver_inline(model, resolver_populated, session):
-#     entities = resolver_populated.load_entities_from_json_dict(AIRPORT_COUNTRY_INLINE_OK, commit=True)
-#     assert len(entities) == 1
-#     airport = session.query(model.Airport).first()
-#     assert airport.country.id == airport.country_id
-#     assert airport.country.short == "UK"
-#     assert airport.country.name == "United Kingdom"
-#
-#
-# def test_resolver_inline_uses_existing(model, resolver_populated, session):
-#     session.add(model.Country(short="UK", name="United Kingdom"))
-#     session.commit()
-#     entities = resolver_populated.load_entities_from_json_dict(AIRPORT_COUNTRY_INLINE_OK, commit=True)
-#     assert len(session.query(model.Country).all()) == 1
-#     assert len(entities) == 1
-#     airport = session.query(model.Airport).first()
-#     assert airport.country.id == airport.country_id
-#     assert airport.country.short == "UK"
-#     assert airport.country.name == "United Kingdom"
-#
-#
-# COUNTRY_AIRPORTS_INLINE_MULTIPLE_OK = {
-#     "target_class": "Country",
-#     "data": {
-#         "short": "UK",
-#         "name": "United Kingdom",
-#         "!inline": {
-#             "airports": {
-#                 "target_class": "Country",
-#                 "data": [
-#                     {
-#                         "icao": "EGLL",
-#                         "name": "London Heathrow"
-#                     }, {
-#                         "icao": "EGKK",
-#                         "name": "London Gatwick"
-#                     }
-#                 ]
-#             }
-#         }
-#     }
-# }
-#
-#
-# def test_resolver_inline_multiple(model, resolver_populated, session):
-#     entities = resolver_populated.load_entities_from_json_dict(COUNTRY_AIRPORTS_INLINE_MULTIPLE_OK, commit=True)
-#     assert len(entities) == 1
-#     assert len(session.query(model.Airport).all()) == 2
-#     country = session.query(model.Country).first()
-#     assert country.short == "UK"
-#     assert country.name == "United Kingdom"
-#     assert len(country.airports) == 2
