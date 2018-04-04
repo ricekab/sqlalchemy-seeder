@@ -5,6 +5,7 @@ import os
 from collections import defaultdict, namedtuple
 
 import jsonschema
+import logging
 import pkg_resources
 import yaml
 from sqlalchemy import inspect as sainsp
@@ -26,6 +27,8 @@ KEY_VALUE_SEPARATOR = '='
 
 MODULE_DEPTH_SEPARATOR = '#'
 MODULE_CLASS_SEPARATOR = ':'
+
+_logger = logging.getLogger(__name__)
 
 
 def _is_mappable_class(cls):
@@ -116,6 +119,7 @@ class ClassRegistry(object):
             for attr in module_attrs:
                 if pyinsp.ismodule(attr):
                     mappable_classes = mappable_classes.union(self.register_module(attr, depth=depth - 1))
+        _logger.debug("Found {} mappable classes in {}".format(len(mappable_classes), module_.__name__))
         for cls in mappable_classes:
             self.register_class(cls)
         return mappable_classes
@@ -274,11 +278,13 @@ class ReferenceResolver(object):
             if not key.startswith(META_CHARACTER):
                 group_builders = self._generate_builders_from_group(key, data)
                 entity_builders.extend(group_builders)
+        _logger.info("Attempting to generate {} entities.".format(len(entity_builders)))
         return self._resolve_builders(entity_builders)
 
     def _generate_builders_from_group(self, target_string, target_data):
         """ Returns the entity or the list of entities that are defined in the group. """
         target_cls = self.registry.get_class_for_string(target_string)
+        _logger.info("Generating builders for class: ".format(target_cls.__name__))
         if isinstance(target_data, list):
             return [self._generate_builder_from_data_block(target_cls, data_block) for data_block in target_data]
         return [self._generate_builder_from_data_block(target_cls, target_data)]
@@ -330,6 +336,7 @@ class _EntityBuilder(object):
 
     def _init_refs(self, data_block):
         for field, reference in data_block.pop("!refs", {}).items():
+            _logger.debug("Parsing reference block".format(reference))
             self.refs.append(EntityReference(src_field=field,
                                              ref_cls=self.registry.get_class_for_string(reference["target_class"]),
                                              ref_filter_dict=reference["criteria"],
@@ -341,6 +348,7 @@ class _EntityBuilder(object):
                 self.id_refs.append(self._parse_id_reference(field, value))
 
     def _parse_inline_reference(self, field, reference_string):
+        _logger.debug("Parsing inline reference: ".format(reference_string))
         reference_string = reference_string.strip(INLINE_REF_CHARACTER)
         ref_target, slug = reference_string.split(REF_CLS_SEPARATOR)
         ref_field = ""
@@ -357,6 +365,7 @@ class _EntityBuilder(object):
                                ref_field=ref_field)
 
     def _parse_id_reference(self, field, reference_string):
+        _logger.debug("Parsing id reference: ".format(reference_string))
         id_ = reference_string.strip(ID_REF_CHARACTER)
         ref_field = ""
         if REF_FIELD_SEPARATOR in id_:
