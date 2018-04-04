@@ -16,6 +16,17 @@ from sqlalchemyseeder.util import UniqueDeque
 VALIDATION_SCHEMA_RSC = 'resources/resolver.schema.json'
 DEFAULT_VERSION = 1
 
+META_CHARACTER = '!'
+INLINE_REF_CHARACTER = '!'
+ID_REF_CHARACTER = '#'
+CRITERIA_SEPARATOR = '&'
+REF_CLS_SEPARATOR = '?'
+REF_FIELD_SEPARATOR = ':'
+KEY_VALUE_SEPARATOR = '='
+
+MODULE_DEPTH_SEPARATOR = '#'
+MODULE_CLASS_SEPARATOR = ':'
+
 
 def _is_mappable_class(cls):
     try:
@@ -57,15 +68,15 @@ class ClassRegistry(object):
         :raise AttributeError: If target string references a class that does not exist.
         """
         if type(target) is str:
-            if ':' not in target:
+            if MODULE_CLASS_SEPARATOR not in target:
                 depth = 1
-                if '#' in target:
-                    target, depth = target.split('#')
+                if MODULE_DEPTH_SEPARATOR in target:
+                    target, depth = target.split(MODULE_DEPTH_SEPARATOR)
                     depth = int(depth)
                 target_module = importlib.import_module(target, depth)
                 return self.register_module(target_module)
             try:
-                target_module, target_class = target.split(':')
+                target_module, target_class = target.split(MODULE_CLASS_SEPARATOR)
                 module_ = importlib.import_module(target_module)
                 target_class = getattr(module_, target_class)
                 return self.register_class(target_class)
@@ -118,7 +129,7 @@ class ClassRegistry(object):
         :return: The class defined by the target.
         :raise AttributeError: If there is no registered class for the given target.
         """
-        if ':' not in target:
+        if MODULE_CLASS_SEPARATOR not in target:
             for cls in self.registered_classes:
                 if cls.__name__ == target:
                     return cls
@@ -128,7 +139,9 @@ class ClassRegistry(object):
         else:
             return self.register(target)
 
+
 MetaData = namedtuple("MetaData", ("version",))
+
 
 class ResolvingSeeder(object):
     """ Seeder that can resolve entities with references to other entities. 
@@ -290,29 +303,29 @@ class ReferenceResolver(object):
     def __init__(self, session, registry, flush_on_create=False):
         self.session = session
         self.registry = registry
+        self.builder_mapping = {}
         self.flush_on_create = flush_on_create
 
     def generate_entities(self, seed_data):
         entity_builders = []
-        if isinstance(seed_data, list):
-            for group_data in seed_data:
-                group_builders = self._generate_builders_from_group(group_data)
+        for key, data in seed_data.items():
+            if not key.startswith(META_CHARACTER):
+                group_builders = self._generate_builders_from_group(key, data)
                 entity_builders.extend(group_builders)
-        if isinstance(seed_data, dict):
-            group_builders = self._generate_builders_from_group(seed_data)
-            entity_builders.extend(group_builders)
         return self._resolve_builders(entity_builders)
 
-    def _generate_builders_from_group(self, entity_group_dict):
+    def _generate_builders_from_group(self, target_string, target_data):
         """ Returns the entity or the list of entities that are defined in the group. """
-        target_cls = self.registry.get_class_for_string(entity_group_dict["target_class"])
-        target_data = entity_group_dict["data"]
+        target_cls = self.registry.get_class_for_string(target_string)
         if isinstance(target_data, list):
             return [self._generate_builder_from_data_block(target_cls, data_block) for data_block in target_data]
         return [self._generate_builder_from_data_block(target_cls, target_data)]
 
     def _generate_builder_from_data_block(self, target_cls, data_dict):
-        return _EntityBuilder(session=self.session, registry=self.registry, target_cls=target_cls, data_block=data_dict)
+        builder = _EntityBuilder(self, target_cls=target_cls, data_block=data_dict)
+        if "!id" in data_dict:
+            self.builder_mapping[data_dict.pop("!id")] = builder
+        return builder
 
     def _resolve_builders(self, entity_builders):
         entities = []
@@ -337,46 +350,91 @@ class ReferenceResolver(object):
 
 
 EntityReference = namedtuple("EntityRef", ['src_field', 'ref_cls', 'ref_filter_dict', 'ref_field'])
+EntityIdReference = namedtuple("EntityIdRef", ['src_field', 'ref_id', 'ref_field'])
 
 
 class _EntityBuilder(object):
     """ A builder corresponds to one entity block and thus can only ever build once. Multiple attempts to build will
      throw a EntityBuildError. """
 
-    def __init__(self, session, registry, target_cls, data_block):
-        self.session = session
-        self.registry = registry
+    def __init__(self, resolver, target_cls, data_block):
+        self.resolver = resolver
         self.target_cls = target_cls
-        self.refs = self._init_refs(data_block.pop("!refs", {}))
+        self.refs = []
+        self.id_refs = []
+        self._init_refs(data_block)
         self.data_dict = data_block
-        self.built = False
+        self.built_entity = None
 
-    def _init_refs(self, refs_block):
-        refs = []
-        for field, reference in refs_block.items():
-            refs.append(EntityReference(src_field=field,
-                                        ref_cls=self.registry.get_class_for_string(reference["target_class"]),
-                                        ref_filter_dict=reference["criteria"],
-                                        ref_field=reference["field"] if "field" in reference else ""))
-        return refs
+    def _init_refs(self, data_block):
+        for field, reference in data_block.pop("!refs", {}).items():
+            self.refs.append(EntityReference(src_field=field,
+                                             ref_cls=self.registry.get_class_for_string(reference["target_class"]),
+                                             ref_filter_dict=reference["criteria"],
+                                             ref_field=reference["field"] if "field" in reference else ""))
+        for field, value in data_block.items():
+            if value.startswith(INLINE_REF_CHARACTER):  # Inline reference
+                self.refs.append(self._parse_inline_reference(field, value))
+            if value.startswith(ID_REF_CHARACTER):  # ID reference
+                self.id_refs.append(self._parse_id_reference(field, value))
+
+    def _parse_inline_reference(self, field, reference_string):
+        reference_string = reference_string.strip(INLINE_REF_CHARACTER)
+        ref_target, slug = reference_string.split(REF_CLS_SEPARATOR)
+        ref_field = ""
+        if REF_FIELD_SEPARATOR in slug:
+            slug, ref_field = slug.split(REF_FIELD_SEPARATOR)
+        criteria = {}
+        for c in slug.split(CRITERIA_SEPARATOR):
+            ref_key, ref_value = c.split(KEY_VALUE_SEPARATOR)
+            # Todo: Numeric and other types?
+            criteria[ref_key] = ref_value
+        return EntityReference(src_field=field,
+                               ref_cls=self.registry.get_class_for_string(ref_target),
+                               ref_filter_dict=criteria,
+                               ref_field=ref_field)
+
+    def _parse_id_reference(self, field, reference_string):
+        id_ = reference_string.strip(ID_REF_CHARACTER)
+        ref_field = ""
+        if REF_FIELD_SEPARATOR in id_:
+            id_, ref_field = id_.split(REF_FIELD_SEPARATOR)
+        return EntityIdReference(src_field=field, ref_id=id_, ref_field=ref_field)
 
     @property
     def resolved(self):
         """ A builder is resolved if there are no more refs / inlines to resolve """
-        return len(self.refs) == 0
+        return len(self.refs) + len(self.id_refs) == 0
+
+    @property
+    def session(self):
+        return self.resolver.session
+
+    @property
+    def registry(self):
+        return self.resolver.registry
+
+    @property
+    def builder_mapping(self):
+        return self.resolver.builder_mapping
 
     def build(self):
         if not self.resolved:
             raise UnresolvedReferencesError("Entity Builder has unresolved references.")
-        if self.built:
+        if self.built_entity:
             raise EntityBuildError("Entity Builder has already been used.")
-        self.built = True
-        return self.target_cls(**self.data_dict)
+        self.built_entity = self.target_cls(**self.data_dict)
+        return self.built_entity
 
     def resolve(self):
         """ Return True if fully resolved, False otherwise. """
         if self.resolved:
             return True
+        self._resolve_refs()
+        self._resolve_id_refs()
+        return self.resolved
+
+    def _resolve_refs(self):
         resolved_refs = []
         for ref in self.refs:  # type: EntityReference
             try:
@@ -391,4 +449,16 @@ class _EntityBuilder(object):
                     self.data_dict[ref.src_field] = reference_entity
         for resolved in resolved_refs:
             self.refs.remove(resolved)
-        return self.resolved
+
+    def _resolve_id_refs(self):
+        resolved_refs = []
+        for ref in self.id_refs:  # type: EntityIdReference
+            if self.builder_mapping[ref.ref_id].built_entity:
+                resolved_refs.append(ref)
+                ref_entity = self.builder_mapping[ref.ref_id].built_entity
+                if ref.ref_field:
+                    self.data_dict[ref.src_field] = getattr(ref_entity, ref.ref_field)
+                else:
+                    self.data_dict[ref.src_field] = ref_entity
+        for resolved in resolved_refs:
+            self.id_refs.remove(resolved)
