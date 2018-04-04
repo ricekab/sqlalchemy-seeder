@@ -1,60 +1,73 @@
 {
-    "$schema": "http://json-schema.org/draft-04/schema#",
-    "definitions": {
-        "ref_description": {
-            "type": "object",
-            "properties": {
-                "target_class": {
-                    "type": "string"
-                },
-                "criteria": {
-                    "type": "object"
-                },
-                "field": {
-                  	"type": "string"
-                }
-            },
-            "required": [
-                "target_class",
-                "criteria"
-            ]
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "definitions": {
+    "ref_description": {
+      "type": "object",
+      "properties": {
+        "target_class": {
+          "type": "string"
         },
-        "entity_data": {
-            "type": "object",
-            "properties": {
-                "!refs": {
-                    "type": "object",
-                    "additionalProperties": { "$ref": "#/definitions/ref_description" }
-                }
-            }
+        "criteria": {
+          "type": "object"
         },
-        "entity_group": {
-            "type": "object",
-            "properties": {
-                "target_class": {
-                    "type": "string"
-                },
-                "data": {
-                    "anyOf": [
-                        { "$ref": "#/definitions/entity_data" },
-                        {
-                            "type": "array",
-                            "items": { "$ref": "#/definitions/entity_data" }
-                        }
-                    ]
-                }
-            },
-            "required": [
-                "target_class",
-                "data"
-            ]
+        "field": {
+          "type": "string"
         }
+      },
+      "required": [
+        "target_class",
+        "criteria"
+      ]
     },
-    "anyOf": [
-        { "$ref": "#/definitions/entity_group" },
-        {
-            "type": "array",
-            "items": { "$ref": "#/definitions/entity_group" }
+    "entity_data": {
+      "type": "object",
+      "properties": {
+        "!refs": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/ref_description"
+          }
+        },
+        "!id": {
+          "type": "string",
+          "pattern": "^[^.#]*$"
         }
-    ]
+      }
+    }
+  },
+  "type": "object",
+  "description": "The root seed object. Contains a number of (optional) meta tags along with any number of entity groups",
+  "properties": {
+    "!version": {
+      "type": "integer"
+    },
+    "!classes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "!files": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "patternProperties": {
+    "^[^!].*$": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/entity_data"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/entity_data"
+          }
+        }
+      ]
+    }
+  },
+  "additionalProperties": false
 }
