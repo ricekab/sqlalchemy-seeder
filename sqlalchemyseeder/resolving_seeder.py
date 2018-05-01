@@ -28,6 +28,14 @@ _logger = logging.getLogger(__name__)
 MetaData = namedtuple("MetaData", ("version",))
 
 
+def _create_entity_class_dictionary(entities):
+    """ Helper function to convert a list of entities into class-indexed lists. """
+    entity_dict = defaultdict(list)
+    for e in entities:
+        entity_dict[e.__class__].append(e)
+    return entity_dict
+
+
 class ResolvingSeeder(object):
     """ Seeder that can resolve entities with references to other entities. 
     
@@ -77,10 +85,7 @@ class ResolvingSeeder(object):
         if commit:
             self.session.commit()
         if separate_by_class:
-            entity_dict = defaultdict(list)
-            for e in generated_entities:
-                entity_dict[e.__class__].append(e)
-            return entity_dict
+            return _create_entity_class_dictionary(generated_entities)
         return generated_entities
 
     def generate_entities(self, seed_data, flush_on_create=True):
@@ -137,17 +142,14 @@ class ResolvingFileSeeder(ResolvingSeeder):
          
         See :any:`load_entities_from_data_dict`
         """
-        entities = []
+        generated_entities = []
         while self.data_queue:
-            entities.extend(self.generate_entities(self.data_queue.pop(), flush_on_create))
+            generated_entities.extend(self.generate_entities(self.data_queue.pop(), flush_on_create))
         if commit:
             self.session.commit()
         if separate_by_class:
-            entity_dict = defaultdict(list)
-            for e in entities:
-                entity_dict[e.__class__].append(e)
-            return entity_dict
-        return entities
+            return _create_entity_class_dictionary(generated_entities)
+        return generated_entities
 
 
 class ReferenceResolver(object):
