@@ -43,7 +43,7 @@ class ClassRegistry(object):
         
             If `target` is a string, it is first resolved into either a module or a class. Which look like:
         
-                Module path: "path.to.module" or "path.to.module#<depth>" 
+                Module path: "path.to.module" or "path.to.module#<depth>"
                 
                 Class path: "path.to.module:MyClass"
         
@@ -52,12 +52,12 @@ class ClassRegistry(object):
         """
         if type(target) is str:
             if MODULE_CLASS_SEPARATOR not in target:
-                depth = 1
+                depth = 0
                 if MODULE_DEPTH_SEPARATOR in target:
                     target, depth = target.split(MODULE_DEPTH_SEPARATOR)
                     depth = int(depth)
-                target_module = importlib.import_module(target, depth)
-                return self.register_module(target_module)
+                target_module = importlib.import_module(target)
+                return self.register_module(target_module, depth)
             try:
                 target_module, target_class = target.split(MODULE_CLASS_SEPARATOR)
                 module_ = importlib.import_module(target_module)
@@ -98,6 +98,7 @@ class ClassRegistry(object):
         if depth > 0:
             for attr in module_attrs:
                 if pyinsp.ismodule(attr):
+                    _logger.debug("Inspecting submodule '{}' (remaining depth: {})".format(attr.__name__, depth - 1))
                     mappable_classes = mappable_classes.union(self.register_module(attr, depth=depth - 1))
         _logger.debug("Found {} mappable classes in {}".format(len(mappable_classes), module_.__name__))
         for cls in mappable_classes:

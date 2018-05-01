@@ -41,7 +41,7 @@
     "!version": {
       "type": "integer"
     },
-    "!classes": {
+    "!models": {
       "type": "array",
       "items": {
         "type": "string"

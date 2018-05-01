@@ -1,7 +1,10 @@
 """
 Tests for resolver with model classes preconfigured.
 """
+import json
+
 import pytest
+import yaml
 from jsonschema import ValidationError
 from sqlalchemyseeder.exceptions import UnresolvedReferencesError, AmbiguousReferenceError
 from sqlalchemyseeder.resolving_seeder import ResolvingSeeder
@@ -10,8 +13,10 @@ from sqlalchemyseeder.resolving_seeder import ResolvingSeeder
 @pytest.fixture()
 def resolver_populated(session, model):
     seeder = ResolvingSeeder(session=session)
-    seeder.registry.register_class(model.Airport)
-    seeder.registry.register_class(model.Country)
+    seeder.register_class(model.Airport)
+    seeder.register_class(model.Country)
+    seeder.register_class(model.User)
+    seeder.register_class(model.Address)
     return seeder
 
 
@@ -23,7 +28,7 @@ COUNTRY_SINGLE_OK = {
 }
 
 
-def test_resolver_basic(model, resolver_populated, session):
+def test_resolver_single(model, resolver_populated, session):
     entities = resolver_populated.load_entities_from_data_dict(COUNTRY_SINGLE_OK, commit=True)
     assert len(entities) == 1
     country = entities[0]
@@ -56,24 +61,16 @@ def test_resolver_combined(model, resolver_populated, session):
         assert e in retrieved_countries
 
 
-COUNTRY_LIST_SEPARATE_OK = [
-    {
-        "target_class": "Country",
-        "data":
-            {
-                "name": "United Kingdom",
-                "short": "UK"
-            }
-
+COUNTRY_LIST_SEPARATE_OK = {  # Note that duplicate keys are not supported (ie. two separate 'Country' entries
+    "Country": {
+        "name": "United Kingdom",
+        "short": "UK"
     },
-    {
-        "target_class": "Country",
-        "data": {
-            "name": "Belgium",
-            "short": "BE"
-        }
+    "conftest:Country": {
+        "name": "Belgium",
+        "short": "BE"
     }
-]
+}
 
 
 def test_resolver_separate(model, resolver_populated, session):
@@ -144,8 +141,7 @@ def test_resolver_reference_field(model, resolver_populated, session):
 
 
 AIRPORT_COUNTRY_REFERENCE_FIELD_UNRESOLVABLE = {
-    "target_class": "Airport",
-    "data": {
+    "Airport": {
         "icao": "EGLL",
         "name": "London Heathrow",
         "!refs": {
@@ -172,8 +168,7 @@ def test_resolver_bad_reference(model, resolver_populated, session):
 
 
 AIRPORT_COUNTRY_REFERENCE_FIELD_AMBIGUOUS = {
-    "target_class": "Airport",
-    "data": {
+    "Airport": {
         "icao": "EGLL",
         "name": "London Heathrow",
         "!refs": {
@@ -226,6 +221,59 @@ def test_resolver_parallel(model, resolver_populated, session):
     assert airport.country.short == "UK"
     assert airport.country.name == "United Kingdom"
 
+AIRPORT_COUNTRY_REFERENCE_SHORTHAND = {
+    "Country": {
+        "name": "United Kingdom",
+        "short": "UK"
+    },
+    "Airport": {
+        "icao": "EGLL",
+        "name": "London Heathrow",
+        "country": "!Country?short=UK"
+    }
+}
+
+
+def test_resolver_reference_shorthand(model, resolver_populated, session):
+    entities = resolver_populated.load_entities_from_data_dict(AIRPORT_COUNTRY_REFERENCE_SHORTHAND, commit=True,
+                                                               separate_by_class=True)
+    assert len(entities[model.Airport]) == 1
+    assert len(entities[model.Country]) == 1
+    airport = entities[model.Airport][0]
+    country = entities[model.Country][0]
+    assert country.short == "UK"
+    assert country.name == "United Kingdom"
+    assert airport.icao == "EGLL"
+    assert airport.name == "London Heathrow"
+    assert airport.country == country
+
+
+
+AIRPORT_COUNTRY_REFERENCE_SHORTHAND_MULTIPLE_CRITERIA = {
+    "Country": {
+        "name": "United Kingdom",
+        "short": "UK"
+    },
+    "Airport": {
+        "icao": "EGLL",
+        "name": "London Heathrow",
+        "country": "!Country?short=UK&name=United Kingdom"
+    }
+}
+
+
+def test_resolver_reference_shorthand_multiple_criteria(model, resolver_populated, session):
+    entities = resolver_populated.load_entities_from_data_dict(AIRPORT_COUNTRY_REFERENCE_SHORTHAND_MULTIPLE_CRITERIA, commit=True,
+                                                               separate_by_class=True)
+    assert len(entities[model.Airport]) == 1
+    assert len(entities[model.Country]) == 1
+    airport = entities[model.Airport][0]
+    country = entities[model.Country][0]
+    assert country.short == "UK"
+    assert country.name == "United Kingdom"
+    assert airport.icao == "EGLL"
+    assert airport.name == "London Heathrow"
+    assert airport.country == country
 
 AIRPORT_COUNTRY_REFERENCE_BY_ID = {
     "Country": {
@@ -246,6 +294,41 @@ def test_resolver_reference_by_id(model, resolver_populated, session):
                                                                separate_by_class=True)
     assert len(entities[model.Airport]) == 1
     assert len(entities[model.Country]) == 1
+    airport = entities[model.Airport][0]
+    country = entities[model.Country][0]
+    assert country.short == "UK"
+    assert country.name == "United Kingdom"
+    assert airport.icao == "EGLL"
+    assert airport.name == "London Heathrow"
+    assert airport.country == country
+
+
+AIRPORT_COUNTRY_REFERENCE_FIELD_SHORTHAND = {
+    "Country": {
+        "name": "United Kingdom",
+        "short": "UK"
+    },
+    "Airport": {
+        "icao": "EGLL",
+        "name": "London Heathrow",
+        "country_id": "!Country?short=UK:id"
+    }
+}
+
+
+def test_resolver_reference_field_shorthand(model, resolver_populated, session):
+    entities = resolver_populated.load_entities_from_data_dict(AIRPORT_COUNTRY_REFERENCE_FIELD_SHORTHAND, commit=False,
+                                                               separate_by_class=True)
+    assert len(entities[model.Airport]) == 1
+    assert len(entities[model.Country]) == 1
+    airport = entities[model.Airport][0]
+    country = entities[model.Country][0]
+    assert country.short == "UK"
+    assert country.name == "United Kingdom"
+    assert airport.icao == "EGLL"
+    assert airport.name == "London Heathrow"
+    assert airport.country_id == country.id
+    assert airport.country == country
 
 
 AIRPORT_COUNTRY_REFERENCE_BY_ID_FIELD = {
@@ -257,21 +340,28 @@ AIRPORT_COUNTRY_REFERENCE_BY_ID_FIELD = {
     "Airport": {
         "icao": "EGLL",
         "name": "London Heathrow",
-        "country_id": "#country_uk.id"
+        "country_id": "#country_uk:id"
     }
 }
 
 
 def test_resolver_reference_by_id_field(model, resolver_populated, session):
-    entities = resolver_populated.load_entities_from_data_dict(AIRPORT_COUNTRY_REFERENCE_BY_ID_FIELD, commit=True,
+    entities = resolver_populated.load_entities_from_data_dict(AIRPORT_COUNTRY_REFERENCE_BY_ID_FIELD, commit=False,
                                                                separate_by_class=True)
     assert len(entities[model.Airport]) == 1
     assert len(entities[model.Country]) == 1
+    airport = entities[model.Airport][0]
+    country = entities[model.Country][0]
+    assert country.short == "UK"
+    assert country.name == "United Kingdom"
+    assert airport.icao == "EGLL"
+    assert airport.name == "London Heathrow"
+    assert airport.country_id == country.id
+    assert airport.country == country
 
 
 AIRPORT_COUNTRY_REFERENCE_BY_ID_UNKNOWN = {
     "Country": {
-        "!id": "country_uk",
         "name": "United Kingdom",
         "short": "UK"
     },
@@ -290,32 +380,36 @@ def test_resolver_reference_by_id_unknown(model, resolver_populated, session):
 
 
 JSON_STRING = '''
-"Country": [
+{
+  "Country": [
     {
-        "name": "United Kingdom",
-        "short": "UK"
+      "name": "United Kingdom",
+      "short": "UK"
     },
     {
-        "name": "Belgium",
-        "short": "BE"
+      "name": "Belgium",
+      "short": "BE"
     }
-],
-"Airport": {
+  ],
+  "Airport": {
     "icao": "EGLL",
     "name": "London Heathrow",
     "!refs": {
-        "country": {
-            "target_class": "Country",
-            "criteria": {
-                "short": "UK"
-            }
+      "country": {
+        "target_class": "Country",
+        "criteria": {
+          "short": "UK"
         }
+      }
     }
-}'''
+  }
+}
+'''
 
 
 def test_resolver_json_string(model, resolver_populated, session):
-    entities = resolver_populated.load_entities_from_json_string(JSON_STRING, commit=True, separate_by_class=True)
+    data_dict = json.loads(JSON_STRING)
+    entities = resolver_populated.load_entities_from_data_dict(data_dict, commit=True, separate_by_class=True)
     heathrow = session.query(model.Airport).filter_by(icao="EGLL").one()
     assert len(entities[model.Airport]) == len(session.query(model.Airport).all()) == 1
     assert len(entities[model.Country]) == len(session.query(model.Country).all()) == 2
@@ -324,12 +418,12 @@ def test_resolver_json_string(model, resolver_populated, session):
 
 
 YAML_STRING = '''
-- Country:
+Country:
   - name: United Kingdom
     short: UK
   - name: Belgium
     short: BE
-- Airport:
+Airport:
   icao: EGLL
   name: London Heathrow
   "!refs": 
@@ -341,7 +435,8 @@ YAML_STRING = '''
 
 
 def test_resolver_yaml_string(model, resolver_populated, session):
-    entities = resolver_populated.load_entities_from_yaml_string(YAML_STRING, commit=True, separate_by_class=True)
+    data_dict = yaml.load(YAML_STRING)
+    entities = resolver_populated.load_entities_from_data_dict(data_dict, commit=True, separate_by_class=True)
     heathrow = session.query(model.Airport).filter_by(icao="EGLL").one()
     assert len(entities[model.Airport]) == len(session.query(model.Airport).all()) == 1
     assert len(entities[model.Country]) == len(session.query(model.Country).all()) == 2
