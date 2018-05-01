@@ -6,6 +6,8 @@ import json
 import pytest
 import yaml
 from jsonschema import ValidationError
+from sqlalchemy.exc import IntegrityError
+
 from sqlalchemyseeder.exceptions import UnresolvedReferencesError, AmbiguousReferenceError
 from sqlalchemyseeder.resolving_seeder import ResolvingSeeder
 
@@ -396,8 +398,83 @@ AIRPORT_COUNTRY_REFERENCE_BY_ID_UNKNOWN = {
 
 def test_resolver_reference_by_id_unknown(model, resolver_populated, session):
     with pytest.raises(UnresolvedReferencesError):
-        resolver_populated.load_entities_from_data_dict(AIRPORT_COUNTRY_REFERENCE_BY_ID_UNKNOWN, commit=True,
-                                                        separate_by_class=True)
+        resolver_populated.load_entities_from_data_dict(AIRPORT_COUNTRY_REFERENCE_BY_ID_UNKNOWN, commit=True, separate_by_class=True)
+
+
+USER_ADDRESSES_REFERENCE_LIST = {
+    "User": {
+        "name": "RiceKab",
+        "addresses": ["#fakemail"]
+    },
+    "Address": {
+        "!id": "fakemail",
+        "email": "kevin@fakedomain.fr"
+    }
+}
+
+
+def test_resolver_reference_list(model, resolver_populated, session):
+    entities = resolver_populated.load_entities_from_data_dict(USER_ADDRESSES_REFERENCE_LIST, commit=True, separate_by_class=True)
+    assert len(entities[model.User]) == 1
+    assert len(entities[model.Address]) == 1
+    user = entities[model.User][0]
+    address = entities[model.Address][0]
+    assert user.name == "RiceKab"
+    assert address.email == "kevin@fakedomain.fr"
+    assert address in user.addresses
+    assert address.user_id == user.id
+
+
+USER_ADDRESSES_REFERENCE_LIST_MULTIPLE = {
+    "User": {
+        "name": "RiceKab",
+        "addresses": ["#fakemail", "!Address?email=ricekab@fakedomain.fr"]
+    },
+    "Address": [
+        {
+            "!id": "fakemail",
+            "email": "kevin@fakedomain.fr"
+        }, {
+            "email": "ricekab@fakedomain.fr"
+        }
+    ]
+}
+
+
+def test_resolver_reference_list_multiple(model, resolver_populated, session):
+    entities = resolver_populated.load_entities_from_data_dict(USER_ADDRESSES_REFERENCE_LIST_MULTIPLE, commit=True, separate_by_class=True)
+    assert len(entities[model.User]) == 1
+    assert len(entities[model.Address]) == 2
+    user = entities[model.User][0]
+    assert len(user.addresses) == 2
+
+
+COUNTRY_AIRPORTS_REFERENCE_LIST = {
+    "Country": {
+        "name": "United Kingdom",
+        "short": "UK",
+        "airports": ["!Airport?icao=EGLL"]
+    },
+    "Airport": {
+        "icao": "EGLL",
+        "name": "London Heathrow"
+    }
+}
+
+
+def test_resolver_reference_list_required_reference(model, resolver_populated, session):
+    """ Test for 1-N / N-M relations where the foreign key is required (not nullable) but is not explicitly assigned. """
+    entities = resolver_populated.load_entities_from_data_dict(COUNTRY_AIRPORTS_REFERENCE_LIST, commit=False, separate_by_class=True)
+    assert len(entities[model.Airport]) == 1
+    assert len(entities[model.Country]) == 1
+    airport = entities[model.Airport][0]
+    country = entities[model.Country][0]
+    assert country.short == "UK"
+    assert country.name == "United Kingdom"
+    assert airport.icao == "EGLL"
+    assert airport.name == "London Heathrow"
+    assert airport.country_id == country.id
+    assert airport.country == country
 
 
 JSON_STRING = '''

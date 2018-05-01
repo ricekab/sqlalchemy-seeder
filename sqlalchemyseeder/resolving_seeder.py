@@ -244,8 +244,10 @@ class ReferenceResolver(object):
         return entities
 
 
-EntityReference = namedtuple("EntityRef", ['src_field', 'ref_cls', 'ref_filter_dict', 'ref_field'])
-EntityIdReference = namedtuple("EntityIdRef", ['src_field', 'ref_id', 'ref_field'])
+EntityReference = namedtuple("EntityRef", ('src_field', 'ref_cls', 'ref_filter_dict', 'ref_field', 'append_to_list'))
+EntityReference.__new__.__defaults__ = (False,)  # 'append_to_list' is False by default
+EntityIdReference = namedtuple("EntityIdRef", ('src_field', 'ref_id', 'ref_field', 'append_to_list'))
+EntityIdReference.__new__.__defaults__ = (False,)  # 'append_to_list' is False by default
 
 
 class _EntityBuilder(object):
@@ -269,12 +271,20 @@ class _EntityBuilder(object):
                                              ref_filter_dict=reference["criteria"],
                                              ref_field=reference["field"] if "field" in reference else ""))
         for field, value in data_block.items():
-            if value.startswith(INLINE_REF_CHARACTER):  # Inline reference
-                self.refs.append(self._parse_inline_reference(field, value))
-            if value.startswith(ID_REF_CHARACTER):  # ID reference
-                self.id_refs.append(self._parse_id_reference(field, value))
+            self._check_references(field, value)
 
-    def _parse_inline_reference(self, field, reference_string):
+    def _check_references(self, field, value, append_to_list=False):
+        if isinstance(value, list):  # List of references
+            for list_ref in value:
+                self._check_references(field, list_ref, append_to_list=True)
+            value.clear()  # Clear the list so it can be filled with entity objects
+            return
+        if value.startswith(INLINE_REF_CHARACTER):  # Inline reference
+            self.refs.append(self._parse_inline_reference(field, value, append_to_list))
+        if value.startswith(ID_REF_CHARACTER):  # ID reference
+            self.id_refs.append(self._parse_id_reference(field, value, append_to_list))
+
+    def _parse_inline_reference(self, field, reference_string, append_to_list=False):
         _logger.debug("Parsing inline reference: ".format(reference_string))
         reference_string = reference_string.strip(INLINE_REF_CHARACTER)
         ref_target, slug = reference_string.split(REF_CLS_SEPARATOR)
@@ -289,15 +299,16 @@ class _EntityBuilder(object):
         return EntityReference(src_field=field,
                                ref_cls=self.registry.get_class_for_string(ref_target),
                                ref_filter_dict=criteria,
-                               ref_field=ref_field)
+                               ref_field=ref_field,
+                               append_to_list=append_to_list)
 
-    def _parse_id_reference(self, field, reference_string):
+    def _parse_id_reference(self, field, reference_string, append_to_list=False):
         _logger.debug("Parsing id reference: ".format(reference_string))
         id_ = reference_string.strip(ID_REF_CHARACTER)
         ref_field = ""
         if REF_FIELD_SEPARATOR in id_:
             id_, ref_field = id_.split(REF_FIELD_SEPARATOR)
-        return EntityIdReference(src_field=field, ref_id=id_, ref_field=ref_field)
+        return EntityIdReference(src_field=field, ref_id=id_, ref_field=ref_field, append_to_list=append_to_list)
 
     @property
     def resolved(self):
@@ -341,7 +352,9 @@ class _EntityBuilder(object):
                 raise AmbiguousReferenceError("Matched more than one entity of class '{}'".format(ref.ref_cls))
             if reference_entity:
                 resolved_refs.append(ref)
-                if ref.ref_field:
+                if ref.append_to_list:
+                    self.data_dict[ref.src_field].append(reference_entity)
+                elif ref.ref_field:
                     self.data_dict[ref.src_field] = getattr(reference_entity, ref.ref_field)
                 else:
                     self.data_dict[ref.src_field] = reference_entity
@@ -355,10 +368,12 @@ class _EntityBuilder(object):
                 raise UnresolvedReferencesError("Unknown id reference '{}'".format(ref.ref_id))
             if self.builder_mapping[ref.ref_id].built_entity:
                 resolved_refs.append(ref)
-                ref_entity = self.builder_mapping[ref.ref_id].built_entity
-                if ref.ref_field:
-                    self.data_dict[ref.src_field] = getattr(ref_entity, ref.ref_field)
+                reference_entity = self.builder_mapping[ref.ref_id].built_entity
+                if ref.append_to_list:
+                    self.data_dict[ref.src_field].append(reference_entity)
+                elif ref.ref_field:
+                    self.data_dict[ref.src_field] = getattr(reference_entity, ref.ref_field)
                 else:
-                    self.data_dict[ref.src_field] = ref_entity
+                    self.data_dict[ref.src_field] = reference_entity
         for resolved in resolved_refs:
             self.id_refs.remove(resolved)
