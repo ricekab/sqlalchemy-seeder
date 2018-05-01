@@ -31,6 +31,6 @@ META_UNKNOWN = {
 }
 
 
-def test_resolver_meta_unknwon(model, resolver_empty, session):
+def test_resolver_meta_unknown(model, resolver_empty, session):
     with pytest.raises(ValidationError):
         resolver_empty.load_entities_from_data_dict(META_UNKNOWN, commit=True)

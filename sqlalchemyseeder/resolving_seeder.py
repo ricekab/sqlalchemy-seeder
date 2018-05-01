@@ -92,7 +92,8 @@ class ResolvingSeeder(object):
         """ Parses the data dictionary to generate the entities. """
         jsonschema.validate(seed_data, self.validation_schema)
         meta_data = self.parse_meta_tags(seed_data)
-        # Todo: Backwards compat support here based on metadata version.
+        _logger.debug("Data schema version: '{}'".format(meta_data.version))
+        # Todo: Backwards compatibility support here based on metadata version.
         resolver = ReferenceResolver(session=self.session, registry=self.registry, flush_on_create=flush_on_create)
         return resolver.generate_entities(seed_data)
 
@@ -132,6 +133,7 @@ class ResolvingFileSeeder(ResolvingSeeder):
         data = yaml.load(data_string)
         jsonschema.validate(data, self.validation_schema)
         referenced_files = data.pop("!files", [])
+        # Todo: Should I build the model registry here as well?
         self.data_queue.append(data)
         for file_ in referenced_files:
             self.queue_file(os.path.join(os.path.dirname(file_path), file_))
@@ -311,6 +313,8 @@ class _EntityBuilder(object):
     def _resolve_id_refs(self):
         resolved_refs = []
         for ref in self.id_refs:  # type: EntityIdReference
+            if ref.ref_id not in self.builder_mapping:
+                raise UnresolvedReferencesError("Unknown id reference '{}'".format(ref.ref_id))
             if self.builder_mapping[ref.ref_id].built_entity:
                 resolved_refs.append(ref)
                 ref_entity = self.builder_mapping[ref.ref_id].built_entity
