@@ -11,9 +11,9 @@ class User(TestBase):
 
     id = Column(Integer, primary_key=True)
     name = Column(String(50), nullable=False)
-    date_of_birth = Column(DateTime)
+    date_of_birth = Column(DateTime, nullable=True)
 
-    country_id = Column(Integer, ForeignKey('country.id'))
+    country_id = Column(Integer, ForeignKey('country.id'), nullable=True)
 
     addresses = relationship("Address", backref="user")
 
@@ -23,7 +23,7 @@ class Address(TestBase):
 
     id = Column(Integer, primary_key=True)
     email = Column(String(50), nullable=False)
-    user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
+    user_id = Column(Integer, ForeignKey('user.id'), nullable=True)
 
 
 class Country(TestBase):
