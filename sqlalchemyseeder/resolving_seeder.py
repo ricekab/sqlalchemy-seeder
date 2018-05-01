@@ -152,10 +152,14 @@ class ResolvingFileSeeder(ResolvingSeeder):
 
     def __init__(self, session):
         super(ResolvingFileSeeder, self).__init__(session)
+        self.file_set = set()
         self.data_queue = UniqueDeque()
 
     def queue_file(self, file_path):
         """ Reads in the given file and parses relevant metadata. Does not perform any seeding actions yet. """
+        if file_path in self.file_set:
+            return  # File has already been traversed
+        self.file_set.add(file_path)
         with open(file_path, 'rt') as yaml_file:
             data_string = yaml_file.read()
         data = yaml.load(data_string)
