@@ -221,6 +221,7 @@ def test_resolver_parallel(model, resolver_populated, session):
     assert airport.country.short == "UK"
     assert airport.country.name == "United Kingdom"
 
+
 AIRPORT_COUNTRY_REFERENCE_SHORTHAND = {
     "Country": {
         "name": "United Kingdom",
@@ -248,7 +249,6 @@ def test_resolver_reference_shorthand(model, resolver_populated, session):
     assert airport.country == country
 
 
-
 AIRPORT_COUNTRY_REFERENCE_SHORTHAND_MULTIPLE_CRITERIA = {
     "Country": {
         "name": "United Kingdom",
@@ -274,6 +274,27 @@ def test_resolver_reference_shorthand_multiple_criteria(model, resolver_populate
     assert airport.icao == "EGLL"
     assert airport.name == "London Heathrow"
     assert airport.country == country
+
+
+AIRPORT_COUNTRY_REFERENCE_SHORTHAND_MULTIPLE_CRITERIA_UNKNOWN = {
+    "Country": {
+        "name": "United Kingdom",
+        "short": "UK"
+    },
+    "Airport": {
+        "icao": "EGLL",
+        "name": "London Heathrow",
+        "country": "!Country?short=UK&name=Bad Name"
+    }
+}
+
+
+def test_resolver_reference_shorthand_multiple_criteria_unknown(model, resolver_populated, session):
+    with pytest.raises(UnresolvedReferencesError):
+        entities = resolver_populated.load_entities_from_data_dict(AIRPORT_COUNTRY_REFERENCE_SHORTHAND_MULTIPLE_CRITERIA_UNKNOWN,
+                                                                   commit=True,
+                                                                   separate_by_class=True)
+
 
 AIRPORT_COUNTRY_REFERENCE_BY_ID = {
     "Country": {
