@@ -167,7 +167,7 @@ class ResolvingSeeder(object):
         """
         with open(seed_file, 'rt') as yaml_file:
             yaml_string = yaml_file.read()
-        return self.load_entities_from_json_string(yaml_string, separate_by_class, flush_on_create, commit)
+        return self.load_entities_from_yaml_string(yaml_string, separate_by_class, flush_on_create, commit)
 
     def load_entities_from_yaml_string(self, yaml_string, separate_by_class=False, flush_on_create=True, commit=False):
         """
