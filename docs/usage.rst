@@ -54,7 +54,7 @@ A list of entity groups:
         "target_class": "MyClass",
         "data": {}
     },{
-        "target_class": "my.module.OtherClass",
+        "target_class": "my.module:OtherClass",
         "data": []
     }]
 
@@ -106,7 +106,7 @@ Specifying a specific field:
 .. code-block:: json
 
     {
-        "target_class": "my.module.OtherClass",
+        "target_class": "my.module:OtherClass",
         "criteria": {
             "length": 4,
             "width": 6
@@ -385,7 +385,7 @@ Three countries each with a single airport.
             "name": "Amsterdam Schiphol",
             "!refs": {
               "country": {
-                "target_class": "Country,",
+                "target_class": "Country",
                 "criteria": {
                   "name": "Netherlands"
                 }
