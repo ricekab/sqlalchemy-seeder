@@ -26,6 +26,7 @@ def test_resolver_bad_root_element(model, resolver_empty, session):
     with pytest.raises(ValidationError):
         resolver_empty.load_entities_from_data_dict(LIST_ROOT_ERROR)
 
+
 META_UNKNOWN = {
     "!unknown-meta-tag": "?"
 }
