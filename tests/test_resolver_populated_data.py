@@ -16,7 +16,8 @@ Country:
   - name: Belgium
     short: BE
 Airport:
-  - icao: EGLL
+  - id: 999
+    icao: EGLL
     name: London Heathrow
     country: "!Country?short=UK"
   - icao: EGKK    
@@ -39,7 +40,7 @@ def resolver(session, model):
     seeder.register_class(model.User)
     seeder.register_class(model.Address)
     data = yaml.load(INITIAL_DATA_YAML)
-    seeder.load_entities_from_data_dict(data, commit=True)
+    seeder.load_entities_from_data_dict(data)
     return seeder
 
 
@@ -49,24 +50,35 @@ def test_initial_data_state(resolver, session, model):
 
 
 ADDING_NEW_DATA = {
-    "Airport": {
+    "Country": {
+        "name": "Netherlands",
+        "short": "NL"
+    },
+    "Airport": [{
         "icao": "EGCC",
         "name": "Manchester Intl",
         "country": "!Country?short=UK"
+    }, {
+        "icao": "EHAM",
+        "name": "Schiphol Intl",
+        "country": "!Country?short=NL"
     }
+    ]
 }
 
 
 def test_adding_data(resolver, session, model):
     assert len(session.query(model.Airport).all()) == 4
     assert len(session.query(model.Country).all()) == 2
-    resolver.load_entities_from_data_dict(ADDING_NEW_DATA)
-    assert len(session.query(model.Airport).all()) == 5
-    assert len(session.query(model.Country).all()) == 2
+    new_entities = resolver.load_entities_from_data_dict(ADDING_NEW_DATA)
+    assert len(new_entities) == 3
+    assert len(session.query(model.Airport).all()) == 6
+    assert len(session.query(model.Country).all()) == 3
 
 
 ADDING_EXISTING_DATA = {
     "Airport": {
+        "id": 999,
         "icao": "EGLL",
         "name": "London Heathrow",
         "country": "!Country?short=UK"
