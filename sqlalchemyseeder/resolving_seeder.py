@@ -285,6 +285,8 @@ class _EntityBuilder(object):
             self._check_references(field, value)
 
     def _check_references(self, field, value, append_to_list=False):
+        if isinstance(value, (int, float,)):
+            return
         if isinstance(value, list):  # List of references
             for list_ref in value:
                 self._check_references(field, list_ref, append_to_list=True)
