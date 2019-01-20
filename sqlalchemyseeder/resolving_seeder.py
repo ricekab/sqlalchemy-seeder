@@ -88,6 +88,17 @@ class ResolvingSeeder(object):
             return _create_entity_class_dictionary(generated_entities)
         return generated_entities
 
+    def load_entities_from_file(self, file_path, separate_by_class=False, flush_on_create=True, commit=False):
+        """
+        Convenience method to read the given file and parse it using `pyyaml`.
+
+        See: :any:`load_entities_from_data_dict`
+        """
+        with open(file_path, 'rt') as seed_file:
+            yaml_string = seed_file.read()
+        data_dict = yaml.load(yaml_string)  # Note: yaml can parse both YAML and JSON.
+        return self.load_entities_from_data_dict(data_dict, separate_by_class, flush_on_create, commit)
+
     def generate_entities(self, seed_data, flush_on_create=True):
         """ Parses the data dictionary to generate the entities. """
         jsonschema.validate(seed_data, self.validation_schema)
