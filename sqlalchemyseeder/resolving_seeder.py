@@ -243,10 +243,11 @@ class ReferenceResolver(object):
                     resolved_builders.append(builder)
             for resolved_builder in resolved_builders:
                 entity = resolved_builder.build()
-                self.session.add(entity)
+                merged_entity = self.session.merge(entity)
+                resolved_builder.built_entity = merged_entity  # Merge creates a new object, update builder reference to the actual persisted object.
                 if self.flush_on_create:
                     self.session.flush()
-                entities.append(entity)
+                entities.append(merged_entity)
                 entity_builders.remove(resolved_builder)
             if previous_builder_count == len(entity_builders):  # No progress being made
                 raise UnresolvedReferencesError(
