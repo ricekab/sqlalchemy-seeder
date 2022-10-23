@@ -440,7 +440,7 @@ A basic usage example:
 
 .. code-block:: python
 
-    from seeder import ResolvingSeeder
+    from sqlalchemyseeder import ResolvingSeeder
     from db import Session  # Or wherever you would get your session
 
     session = Session()
