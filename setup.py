@@ -5,7 +5,7 @@ setup(
     version='0.3.1',
     packages=find_packages(exclude=["tests"]),
     package_data={"sqlalchemyseeder": ["resources/*"]},
-    url='https://github.com/RiceKab/sqlalchemy-seeder',
+    url='https://github.com/ricekab/sqlalchemy-seeder',
     license='MIT',
     author='Kevin CY Tang',
     author_email='kevin@cyborn.be',
@@ -19,6 +19,6 @@ setup(
         'Programming Language :: Python :: 3'
     ],
     install_requires=['SQLAlchemy', 'jsonschema', 'pyyaml'],
-    test_requires=["pytest"],
+    tests_require=["pytest"],
     python_requires='>=3.4'
 )

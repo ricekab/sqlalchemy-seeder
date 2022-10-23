@@ -20,13 +20,13 @@ sys.path.insert(0, os.path.abspath('..'))
 # -- Project information -----------------------------------------------------
 
 project = u'sqlalchemy-seeder'
-copyright = u'2018, Kevin CY Tang'
+copyright = u'2022, Kevin CY Tang'
 author = u'Kevin CY Tang'
 
 # The short X.Y version
-version = u'0.2'
+version = u'0.3'
 # The full version, including alpha/beta/rc tags
-release = u'0.2.0'
+release = u'0.3.1'
 
 
 # -- General configuration ---------------------------------------------------
