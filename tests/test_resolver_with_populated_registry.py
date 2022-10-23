@@ -526,7 +526,7 @@ Airport:
 
 
 def test_resolver_yaml_string(model, resolver_with_model, session):
-    data_dict = yaml.load(YAML_STRING)
+    data_dict = yaml.load(YAML_STRING, Loader=yaml.Loader)
     entities = resolver_with_model.load_entities_from_data_dict(data_dict, commit=True, separate_by_class=True)
     heathrow = session.query(model.Airport).filter_by(icao="EGLL").one()
     assert len(entities[model.Airport]) == len(session.query(model.Airport).all()) == 1

@@ -39,7 +39,7 @@ def resolver(session, model):
     seeder.register_class(model.Country)
     seeder.register_class(model.User)
     seeder.register_class(model.Address)
-    data = yaml.load(INITIAL_DATA_YAML)
+    data = yaml.load(INITIAL_DATA_YAML, Loader=yaml.Loader)
     seeder.load_entities_from_data_dict(data)
     return seeder
 
