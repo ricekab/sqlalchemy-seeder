@@ -4,7 +4,7 @@ that are defined alongside it or persisted in the database.
 
 ## Requirements & Installation
 
-Runs on Python 2.7 or Python 3
+Runs on Python 3.4 or higher.
 
 #### Dependencies
 * sqlalchemy

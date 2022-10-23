@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='sqlalchemy-seeder',
-    version='0.3.0',
+    version='0.3.1',
     packages=find_packages(exclude=["tests"]),
     package_data={"sqlalchemyseeder": ["resources/*"]},
     url='https://github.com/RiceKab/sqlalchemy-seeder',
@@ -16,10 +16,9 @@ setup(
         'Intended Audience :: Developers',
         'Topic :: Utilities',
         'License :: OSI Approved :: MIT License',
-        'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3'
     ],
     install_requires=['SQLAlchemy', 'jsonschema', 'pyyaml'],
     test_requires=["pytest"],
-    python_requires='>=2.7'
+    python_requires='>=3.4'
 )
